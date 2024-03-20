@@ -25,7 +25,7 @@
     "@tresjs/core": "^3.7.0",
     "@tresjs/leches": "^0.14.0",
     "three": "^0.152.2",
-    "vue": "^3.3.4"
+    "vue": "^3.4"
   },
   "devDependencies": {
     "@types/three": "^0.152.1",

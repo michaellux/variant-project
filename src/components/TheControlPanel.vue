@@ -1,9 +1,15 @@
 <script lang="ts" setup>
 import { useControls, TresLeches } from '@tresjs/leches'
 import '@tresjs/leches/styles';
-import { Vector3 } from 'three';
+import { Vector3, TorusGeometry, MeshBasicMaterial, Mesh } from 'three';
 import sources from '../sources';
-const FPSControl = useControls('fpsgraph')
+
+const emit = defineEmits(['addmesh'])
+
+const addMesh = () => {
+  emit('addmesh');
+};
+
 const MeshControl = useControls({
   mesh: {
     label: '',
@@ -18,9 +24,7 @@ const MeshControl = useControls({
   addMeshBtn: {
     label: 'Add mesh',
     type: 'button',
-    onClick: () => {
-      console.log('add mesh');
-    },
+    onClick: addMesh,
     size: 'md',
   },
   position: new Vector3(0,0,0),
