@@ -7,10 +7,10 @@ settings:
 dependencies:
   '@tresjs/cientos':
     specifier: 3.7.0
-    version: 3.7.0(@tresjs/core@3.6.0)(three@0.152.2)(tweakpane@4.0.2)(vue@3.3.12)
+    version: 3.7.0(@tresjs/core@3.7.0)(three@0.152.2)(tweakpane@4.0.2)(vue@3.3.12)
   '@tresjs/core':
-    specifier: 3.6.0
-    version: 3.6.0(three@0.152.2)(vue@3.3.12)
+    specifier: ^3.7.0
+    version: 3.7.0(three@0.152.2)(vue@3.3.12)
   '@tresjs/leches':
     specifier: ^0.14.0
     version: 0.14.0(vite@4.5.1)(vue@3.3.12)
@@ -263,7 +263,7 @@ packages:
       picomatch: 2.3.1
     dev: true
 
-  /@tresjs/cientos@3.7.0(@tresjs/core@3.6.0)(three@0.152.2)(tweakpane@4.0.2)(vue@3.3.12):
+  /@tresjs/cientos@3.7.0(@tresjs/core@3.7.0)(three@0.152.2)(tweakpane@4.0.2)(vue@3.3.12):
     resolution: {integrity: sha512-et5SNCgRZGb6/NU7CQbrn5E31wr9qq/I8v3YvX7TXWw+RmLmP6UBh4Ctr/dNNpsXwXnUr9oJ6KtFbJU2Gwmd5Q==}
     peerDependencies:
       '@tresjs/core': '>=3.2'
@@ -271,7 +271,7 @@ packages:
       tweakpane: '>=3.0.0'
       vue: '>=3.3'
     dependencies:
-      '@tresjs/core': 3.6.0(three@0.152.2)(vue@3.3.12)
+      '@tresjs/core': 3.7.0(three@0.152.2)(vue@3.3.12)
       '@vueuse/core': 10.7.0(vue@3.3.12)
       camera-controls: 2.7.3(three@0.152.2)
       stats-gl: 2.0.1
@@ -287,8 +287,8 @@ packages:
       - react
     dev: false
 
-  /@tresjs/core@3.6.0(three@0.152.2)(vue@3.3.12):
-    resolution: {integrity: sha512-eG5WFyETwSMmGt/5v+5yTk8nxU2ohyUdE2F6Dv4e7PIMXGsiNaT6ouT3jR9oK4LBU+I/1KZXb0V6HJKCS+AV/Q==}
+  /@tresjs/core@3.7.0(three@0.152.2)(vue@3.3.12):
+    resolution: {integrity: sha512-Hg6VK7RQuGiXyLlbB+7FdPyS4KERxIpnU8EO/UzmN4/Bfr6I9Kuo1F0LF+5BBFyxBPqc7sD1Dcy7Epj8We9ETg==}
     peerDependencies:
       three: '>=0.133'
       vue: '>=3.3'
@@ -556,6 +556,7 @@ packages:
     resolution: {integrity: sha512-ceqxoedUrcayh7Y7ZX6NdbbDzGROiyVBgC4PriJThBKSVPWnnFHZAkfI1lJT8QFkOwH4qOS2SJkS4wvpGl8BpA==}
     engines: {node: '>=12'}
     hasBin: true
+    requiresBuild: true
     optionalDependencies:
       '@esbuild/android-arm': 0.18.20
       '@esbuild/android-arm64': 0.18.20
