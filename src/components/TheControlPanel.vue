@@ -1,97 +1,99 @@
 <script lang="ts" setup>
-import { useControls, TresLeches } from '@tresjs/leches'
-import '@tresjs/leches/styles';
-import { Vector3, TorusGeometry, MeshBasicMaterial, Mesh } from 'three';
-import sources from '../sources';
+import { useControls, TresLeches } from "@tresjs/leches";
+import "@tresjs/leches/styles";
+import { Vector3, TorusGeometry, MeshBasicMaterial, Mesh } from "three";
+import sources from "../sources";
 
-const emit = defineEmits(['addmesh'])
+const emit = defineEmits<{
+  addmesh: [value: string]
+}>();
 
 const addMesh = () => {
-  emit('addmesh');
+  const meshValue = MeshControl.mesh.value.mesh;
+  emit("addmesh", meshValue);
 };
 
 const MeshControl = useControls({
   mesh: {
-    label: '',
-    value: '',
+    label: "",
+    value: "",
     options: sources
-    .filter((source) => source.type === 'model')
-    .map(source => ({
-      text: source.name,
-      value: source.name,
-    }))
+      .filter((source) => source.type === "model")
+      .map((source) => ({
+        text: source.name,
+        value: source.name,
+      })),
   },
   addMeshBtn: {
-    label: 'Add mesh',
-    type: 'button',
+    label: "Add mesh",
+    type: "button",
     onClick: addMesh,
-    size: 'md',
+    size: "md",
   },
-  position: new Vector3(0,0,0),
+  position: new Vector3(0, 0, 0),
   albedo: {
-    label: '',
-    value: '',
+    label: "",
+    value: "",
     options: sources
-    .filter((source) => source.subtype === 'albedo')
-    .map(source => ({
-      text: source.name,
-      value: source.name,
-    }))
+      .filter((source) => source.subtype === "albedo")
+      .map((source) => ({
+        text: source.name,
+        value: source.name,
+      })),
   },
   roughness: {
-    label: '',
-    value: '',
+    label: "",
+    value: "",
     options: sources
-    .filter((source) => source.subtype === 'roughness')
-    .map(source => ({
-      text: source.name,
-      value: source.name,
-    }))
+      .filter((source) => source.subtype === "roughness")
+      .map((source) => ({
+        text: source.name,
+        value: source.name,
+      })),
   },
   metalness: {
-    label: '',
-    value: '',
+    label: "",
+    value: "",
     options: sources
-    .filter((source) => source.subtype === 'metalness')
-    .map(source => ({
-      text: source.name,
-      value: source.name,
-    }))
+      .filter((source) => source.subtype === "metalness")
+      .map((source) => ({
+        text: source.name,
+        value: source.name,
+      })),
   },
   normal: {
-    label: '',
-    value: '',
+    label: "",
+    value: "",
     options: sources
-    .filter((source) => source.subtype === 'normal')
-    .map(source => ({
-      text: source.name,
-      value: source.name,
-    }))
+      .filter((source) => source.subtype === "normal")
+      .map((source) => ({
+        text: source.name,
+        value: source.name,
+      })),
   },
   sheen: {
-    label: '',
-    value: '',
+    label: "",
+    value: "",
     options: sources
-    .filter((source) => source.subtype === 'sheen')
-    .map(source => ({
-      text: source.name,
-      value: source.name,
-    }))
+      .filter((source) => source.subtype === "sheen")
+      .map((source) => ({
+        text: source.name,
+        value: source.name,
+      })),
   },
   deleteMeshBtn: {
-    label: 'Delete mesh',
-    type: 'button',
+    label: "Delete mesh",
+    type: "button",
     onClick: () => {
-      console.log('delete mesh');
+      console.log("delete mesh");
     },
-    size: 'md',
+    size: "md",
   },
-})
+});
 </script>
 
 <template>
-  <TresLeches style="position: absolute;
-    z-index: 9;
-    right: 1.5rem;
-    top: 1.5rem;"/>
+  <TresLeches
+    style="position: absolute; z-index: 9; right: 1.5rem; top: 1.5rem"
+  />
 </template>

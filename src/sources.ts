@@ -1,22 +1,22 @@
 import { sub } from './../node_modules/.pnpm/@types+three@0.152.1/node_modules/@types/_tmp_25084_982bcfcc5c1c232fd867f3d41004429f/examples/jsm/nodes/shadernode/ShaderNodeBaseElements.d';
 export default [
   {
-     name: 'chairModel',
+     name: 'chair',
      type: 'model',
      path: 'models/chair.glb',
   },
   {
-    name: 'cubeModel',
+    name: 'cube',
     type: 'model',
     path: 'models/cube.glb',
   },
   {
-    name: 'helmetModel',
+    name: 'helmet',
     type: 'model',
     path:'models/helmet.glb'
   },
   {
-    name: 'suzanneModel',
+    name: 'suzanne',
     type: 'model', 
     path:'models/suzanne.glb'
   },
