@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { TresCanvas, extend } from "@tresjs/core";
-import { ref, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
+import { TresCanvas } from "@tresjs/core";
+import { watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
 import { BasicShadowMap, SRGBColorSpace, NoToneMapping, Vector3 } from "three";
 import { OrbitControls, TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
 import { Raycaster, Vector2 } from "three";
-import TheControlPanel from "./TheControlPanel.vue";
 import sources from "../sources";
-import "@tresjs/leches/styles";
-
+import GUI, { Controller } from 'lil-gui';
 const gl = reactive({
   clearColor: "#b9b9b4",
   shadows: true,
@@ -22,7 +20,10 @@ const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const groupRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const choosenMeshRef: ShallowRef<TresInstance | null> = shallowRef(null);
 let context = null;
-let choosenMesh = ref(null);
+let gui = null;
+let positionFolder = null;
+
+
 
 const transformState = shallowReactive({
   showX: true,
@@ -30,9 +31,8 @@ const transformState = shallowReactive({
   showZ: true,
 });
 
-const handleAddMesh = async (meshValue: string) => {
-  if (meshValue !== "") {
-    console.log("add Mesh");
+const handleAddMesh = async (meshValue) => {
+  if (meshValue !== "Не выбран") {
     const modelFile = sources.find(
       (source) => source.type === "model" && source.name === meshValue
     )?.path;
@@ -50,7 +50,6 @@ const handleAddMesh = async (meshValue: string) => {
         ...groupRef.value.children,
         downloadModel.scene,
       ];
-      console.log(groupRef.value);
     } else {
       console.error("groupRef is not initialized");
     }
@@ -81,11 +80,20 @@ const handleMouseDown = (event) => {
     for (const intersect of intersects) {
       if (intersect.object.type === "Mesh" && intersect.object.name.endsWith("inScene")) {
         let choosenMesh = intersect.object;
-        console.log("Mesh выбран");
-        console.log("choosenMesh", choosenMesh);
-        console.log("type", choosenMesh.parent?.type);
-        //intersect.object.material.color.setHex(Math.random() * 0xffffff);
         choosenMeshRef.value = choosenMesh;
+        if (positionFolder === null) {
+            positionFolder = gui.addFolder('Position');
+            positionFolder.add(choosenMeshRef.value.position, 'x').min(-10).max(10).step(0.01).listen();
+            positionFolder.add(choosenMeshRef.value.position, 'y').min(-10).max(10).step(0.01).listen();
+            positionFolder.add(choosenMeshRef.value.position, 'z').min(-10).max(10).step(0.01).listen();
+        }
+        else {
+            console.log(positionFolder.controllers);
+            console.log(choosenMeshRef.value);
+            positionFolder.controllers.forEach(controller => {
+              controller.object = choosenMeshRef.value.position;
+            });
+        }
         break;
       }
     }
@@ -93,8 +101,19 @@ const handleMouseDown = (event) => {
 };
 
 onMounted(() => {
-  console.log(cameraRef);
-  console.log(canvasRef.value.context);
+  gui = new GUI();
+
+  const meshes = sources
+      .filter((source) => source.type === "model")
+      .map((source) => source.name);
+  const controlValues = {
+    mesh: 'Не выбран',
+    addMesh: function() {
+      handleAddMesh(this.mesh)
+    }
+  }
+  gui.add(controlValues, "mesh", meshes);
+  gui.add(controlValues, "addMesh");
   document.addEventListener("mousedown", handleMouseDown, false);
 });
 
@@ -104,7 +123,6 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <TheControlPanel @addmesh="handleAddMesh" />
   <TresCanvas ref="canvasRef" v-bind="gl" preset="realistic">
     <Stats style="left: 1.5rem; top: 1.5rem" />
     <TresPerspectiveCamera
