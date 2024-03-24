@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { TresCanvas } from "@tresjs/core";
+import { TresCanvas, useTexture } from "@tresjs/core";
 import { watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
 import { BasicShadowMap, SRGBColorSpace, NoToneMapping, Vector3 } from "three";
 import { OrbitControls, TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
-import { Raycaster, Vector2 } from "three";
+import { Raycaster, Vector2, MeshPhysicalMaterial } from "three";
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
+
+import TexturedBall from './TexturedBall.vue';
 const gl = reactive({
   clearColor: "#b9b9b4",
   shadows: true,
@@ -22,7 +24,12 @@ const choosenMeshRef: ShallowRef<TresInstance | null> = shallowRef(null);
 let context = null;
 let gui = null;
 let positionFolder = null;
+let textureFolder = null;
+const notChoosetext = "Не выбрано";
 
+// const pbrTexture = await useTexture({
+//   map: 'textures/albedo/albedo-wood.png',
+// })
 
 
 const transformState = shallowReactive({
@@ -31,8 +38,8 @@ const transformState = shallowReactive({
   showZ: true,
 });
 
-const handleAddMesh = async (meshValue) => {
-  if (meshValue !== "Не выбран") {
+const handleAddMesh = async (meshValue: string) => {
+  if (meshValue !== notChoosetext) {
     const modelFile = sources.find(
       (source) => source.type === "model" && source.name === meshValue
     )?.path;
@@ -43,8 +50,9 @@ const handleAddMesh = async (meshValue) => {
     const downloadModel = await useGLTF(modelFile, {
       binary: true,
     });
-    const meshName = downloadModel.scene.children[0].name;
+    let meshName = downloadModel.scene.children[0].name;
     downloadModel.scene.children[0].name = `${meshName}_inScene`;
+    downloadModel.scene.name = `${meshName}_inScene`;
     if (groupRef.value) {
       groupRef.value.children = [
         ...groupRef.value.children,
@@ -55,6 +63,53 @@ const handleAddMesh = async (meshValue) => {
     }
   } else {
     alert("Не выбрана геометрия!");
+  }
+};
+
+const handleApplyTexture = async (textureSubtypeName: string) => {
+  if (textureSubtypeName !== notChoosetext) {
+    const textureFile = sources.find(
+      (source) => source.type === "texture" && source.name === textureSubtypeName
+    )?.path;
+    if (!textureFile) {
+      console.error("Texture file not found");
+      return;
+    }
+    const downloadTexture = await useTexture({
+       map: textureFile,
+    });
+    console.log("texture", downloadTexture);
+    console.log("choosenMeshRef",choosenMeshRef.value);
+    const newMaterial = new MeshPhysicalMaterial();
+    const oldMaterial = choosenMeshRef.value.material;
+    
+    choosenMeshRef.value.material = newMaterial; // применяем свежий материал
+    choosenMeshRef.value.material.map = downloadTexture.map;
+    choosenMeshRef.value.material.attenuationColor = oldMaterial.attenuationColor;
+    choosenMeshRef.value.material.clearcoatNormalScale = oldMaterial.clearcoatNormalScale;
+    choosenMeshRef.value.material.color = oldMaterial.color;
+    choosenMeshRef.value.material.defines = oldMaterial.defines;
+    choosenMeshRef.value.material.emissive = oldMaterial.emissive;
+    choosenMeshRef.value.material.ior = oldMaterial.ior;
+    choosenMeshRef.value.material.iridescenceThicknessRange = oldMaterial.iridescenceThicknessRange;
+    choosenMeshRef.value.material.metalness = oldMaterial.metalness;
+    choosenMeshRef.value.material.normalScale = oldMaterial.normalScale;
+    choosenMeshRef.value.material.roughness = oldMaterial.roughness;
+    choosenMeshRef.value.material.sheenColor = oldMaterial.sheenColor;
+    choosenMeshRef.value.material.side = oldMaterial.side;
+    choosenMeshRef.value.material.specularColor = oldMaterial.specularColor;
+    choosenMeshRef.value.material.specularIntensity = oldMaterial.specularIntensity;
+function compareObjects(obj1, obj2) {
+    const keys = Array.from(new Set([...Object.keys(obj1), ...Object.keys(obj2)]));
+    const diff = Object.entries({...obj1, ...obj2}).filter(([key]) => obj1[key] !== obj2[key]);
+    return Object.fromEntries(diff);
+}
+
+
+    console.log(compareObjects(oldMaterial, choosenMeshRef.value.material));
+
+    //choosenMeshRef.value.material.color.setHex(0xffff00);
+    console.log("choosenMeshRef - после применения",choosenMeshRef.value);
   }
 };
 
@@ -77,15 +132,53 @@ const handleMouseDown = (event) => {
   if (intersects.length > 0) {
     console.log("Выбрано", intersects);
 
+    const findRootGroupOfMesh = (intersectMesh) => {
+      let currentNode = intersectMesh.parent;
+      while (!currentNode.isGroup) {
+        currentNode = currentNode.parent;
+      }
+      if (currentNode.name.endsWith("_inScene")) {
+        return currentNode;
+      }
+      return null;
+    }
+
     for (const intersect of intersects) {
-      if (intersect.object.type === "Mesh" && intersect.object.name.endsWith("inScene")) {
-        let choosenMesh = intersect.object;
+      const intersectType = intersect.object.type;
+      const intersectMesh = intersect.object;
+      let rootGroupOfMesh = null;
+      if (intersectType === "Mesh") {
+        rootGroupOfMesh = findRootGroupOfMesh(intersectMesh);
+      }
+      if (rootGroupOfMesh !== null) {
+        let choosenMesh = rootGroupOfMesh.children[0];
+        console.log("choosenMesh", choosenMesh);
         choosenMeshRef.value = choosenMesh;
         if (positionFolder === null) {
             positionFolder = gui.addFolder('Position');
             positionFolder.add(choosenMeshRef.value.position, 'x').min(-10).max(10).step(0.01).listen();
             positionFolder.add(choosenMeshRef.value.position, 'y').min(-10).max(10).step(0.01).listen();
             positionFolder.add(choosenMeshRef.value.position, 'z').min(-10).max(10).step(0.01).listen();
+        }
+        if (textureFolder === null) {
+          textureFolder = gui.addFolder('Textures');
+          let textures = sources
+          .filter((source) => source.type === "texture");
+          let textureSubTypeNames = new Set(textures.map((texture) => texture.subtype));
+          let controls = {};
+          textureSubTypeNames.forEach((subtype) => {
+            controls[subtype] = notChoosetext;
+          });
+          textureSubTypeNames.forEach((subtype) => {
+           textureFolder?.add(controls, subtype, textures
+              .filter((source) => source.subtype === subtype)
+              .map((source) => source.name)
+              )
+            .onChange(event => {
+              console.log(event);
+              handleApplyTexture(event)
+          })
+          })
         }
         else {
             console.log(positionFolder.controllers);
@@ -107,7 +200,7 @@ onMounted(() => {
       .filter((source) => source.type === "model")
       .map((source) => source.name);
   const controlValues = {
-    mesh: 'Не выбран',
+    mesh: notChoosetext,
     addMesh: function() {
       handleAddMesh(this.mesh)
     }
@@ -141,6 +234,9 @@ onUnmounted(() => {
     <TresGridHelper :args="[500, 50]" />
     <TresAxesHelper :args="[100]" />
     <TresGroup ref="groupRef" v-log>
+       <!-- <Suspense>
+          <TexturedBall />
+       </Suspense> -->
     </TresGroup>
   </TresCanvas>
 </template>
