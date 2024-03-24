@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { TresCanvas, useTexture } from "@tresjs/core";
 import { watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
-import { BasicShadowMap, SRGBColorSpace, NoToneMapping, Vector3 } from "three";
+import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, Vector3, MeshStandardMaterial } from "three";
 import { OrbitControls, TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
-import { Raycaster, Vector2, MeshPhysicalMaterial } from "three";
+import { Raycaster, Vector2, RepeatWrapping } from "three";
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
 
-import TexturedBall from './TexturedBall.vue';
+//import TexturedBall from './TexturedBall.vue';
+//import TexturedCube from './TexturedCube.vue';
+import Primitive from './Primitive.vue';
 const gl = reactive({
   clearColor: "#b9b9b4",
   shadows: true,
@@ -53,6 +55,36 @@ const handleAddMesh = async (meshValue: string) => {
     let meshName = downloadModel.scene.children[0].name;
     downloadModel.scene.children[0].name = `${meshName}_inScene`;
     downloadModel.scene.name = `${meshName}_inScene`;
+    console.log(downloadModel.scene.children[0].geometry);
+
+    const remapUVs = (geo) => {
+       geo.computeBoundingBox();
+    var min = geo.boundingBox.min;
+    var max = geo.boundingBox.max;
+    var offset = new Vector2(0 - min.x, 0 - min.y);
+    var size = new Vector2(max.x - min.x, max.y - min.y);
+
+    // Получаем текущие UV-координаты
+    var uvArray = geo.attributes.uv.array;
+
+    // Пересчитываем UV-координаты для каждой вершины
+    for (var i = 0; i < uvArray.length; i += 2) {
+        // Получаем текущие UV-координаты
+        var u = uvArray[i];
+        var v = uvArray[i + 1];
+
+        // Пересчитываем UV-координаты
+        uvArray[i] = (u + offset.x) / size.x;
+        uvArray[i + 1] = (v + offset.y) / size.y;
+    }
+
+    // Обновляем атрибут UV
+    geo.attributes.uv.needsUpdate = true;
+    };
+
+    //remapUVs(downloadModel.scene.children[0].geometry);
+
+
     if (groupRef.value) {
       groupRef.value.children = [
         ...groupRef.value.children,
@@ -78,38 +110,72 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
     const downloadTexture = await useTexture({
        map: textureFile,
     });
-    console.log("texture", downloadTexture);
-    console.log("choosenMeshRef",choosenMeshRef.value);
-    const newMaterial = new MeshPhysicalMaterial();
-    const oldMaterial = choosenMeshRef.value.material;
+
+    const modelMaterial = choosenMeshRef.value.material;
+    const newMaterial = new modelMaterial.constructor();
+
+    choosenMeshRef.value.traverse((child) => {
+       if (child instanceof Mesh) {
+        child.material = newMaterial; // применяем свежий материал
+        child.material.map = downloadTexture.map;
+
+        choosenMeshRef.value.material.map.wrapS = RepeatWrapping;
+        choosenMeshRef.value.material.map.wrapT = RepeatWrapping;
+
+        choosenMeshRef.value.material.map.x = 0.5
+        choosenMeshRef.value.material.map.y = 0.5
+        choosenMeshRef.value.material.map.rotation = Math.PI * 0.5
+
+        child.material.attenuationColor = modelMaterial.attenuationColor;
+        child.material.clearcoatNormalScale = modelMaterial.clearcoatNormalScale;
+       
+        child.material.defines = modelMaterial.defines;
+        child.material.emissive = modelMaterial.emissive;
+        child.material.ior = modelMaterial.ior;
+        child.material.iridescenceThicknessRange = modelMaterial.iridescenceThicknessRange;
+
+        child.material.normalScale = modelMaterial.normalScale;
+        child.material.roughness = modelMaterial.roughness;
+        child.material.sheenColor = modelMaterial.sheenColor;
+        child.material.side = modelMaterial.side;
+        child.material.specularColor = modelMaterial.specularColor;
+        child.material.specularIntensity = modelMaterial.specularIntensity
+
+        //child.material.metalness = modelMaterial.metalness; // если добавить будет тёмное дерево
+        //child.material.color = modelMaterial.color; // если добавить будет тёмное дерево
+
+       }
+    });
     
-    choosenMeshRef.value.material = newMaterial; // применяем свежий материал
-    choosenMeshRef.value.material.map = downloadTexture.map;
-    choosenMeshRef.value.material.attenuationColor = oldMaterial.attenuationColor;
-    choosenMeshRef.value.material.clearcoatNormalScale = oldMaterial.clearcoatNormalScale;
-    choosenMeshRef.value.material.color = oldMaterial.color;
-    choosenMeshRef.value.material.defines = oldMaterial.defines;
-    choosenMeshRef.value.material.emissive = oldMaterial.emissive;
-    choosenMeshRef.value.material.ior = oldMaterial.ior;
-    choosenMeshRef.value.material.iridescenceThicknessRange = oldMaterial.iridescenceThicknessRange;
-    choosenMeshRef.value.material.metalness = oldMaterial.metalness;
-    choosenMeshRef.value.material.normalScale = oldMaterial.normalScale;
-    choosenMeshRef.value.material.roughness = oldMaterial.roughness;
-    choosenMeshRef.value.material.sheenColor = oldMaterial.sheenColor;
-    choosenMeshRef.value.material.side = oldMaterial.side;
-    choosenMeshRef.value.material.specularColor = oldMaterial.specularColor;
-    choosenMeshRef.value.material.specularIntensity = oldMaterial.specularIntensity;
-function compareObjects(obj1, obj2) {
-    const keys = Array.from(new Set([...Object.keys(obj1), ...Object.keys(obj2)]));
-    const diff = Object.entries({...obj1, ...obj2}).filter(([key]) => obj1[key] !== obj2[key]);
-    return Object.fromEntries(diff);
-}
 
+    function compareObjects(obj1, obj2) {
+        const keys = Array.from(new Set([...Object.keys(obj1), ...Object.keys(obj2)]));
+        const diff = Object.entries({...obj1, ...obj2}).filter(([key]) => obj1[key] !== obj2[key]);
+        return Object.fromEntries(diff);
+    }
 
-    console.log(compareObjects(oldMaterial, choosenMeshRef.value.material));
+    console.log(compareObjects(modelMaterial, choosenMeshRef.value.material));
 
-    //choosenMeshRef.value.material.color.setHex(0xffff00);
     console.log("choosenMeshRef - после применения",choosenMeshRef.value);
+    const texture = {
+      wrapS: choosenMeshRef.value.material.map.wrapS,
+      wrapT: choosenMeshRef.value.material.map.wrapT,
+      repeatX: choosenMeshRef.value.material.map.repeat.x,
+      repeatY: choosenMeshRef.value.material.map.repeat.y,
+    }
+    const updateTexture = () => {
+      console.log("updateTexture");
+      console.log(texture);
+      choosenMeshRef.value.material.map.wrapS = texture.wrapS;
+      choosenMeshRef.value.material.map.wrapT = texture.wrapT;
+      choosenMeshRef.value.material.map.repeat.x = texture.repeatX;
+      choosenMeshRef.value.material.map.repeat.y = texture.repeatY;
+      choosenMeshRef.value.material.map.needsUpdate = true;
+	  }
+    gui.add(texture, "wrapS").onChange(updateTexture);
+    gui.add(texture, "wrapT").onChange(updateTexture);
+    gui.add(texture, "repeatX").onChange(updateTexture);
+    gui.add(texture, "repeatY").onChange(updateTexture);
   }
 };
 
@@ -179,6 +245,8 @@ const handleMouseDown = (event) => {
               handleApplyTexture(event)
           })
           })
+
+          console.log("choosenMesh" ,choosenMeshRef.value);
         }
         else {
             console.log(positionFolder.controllers);
@@ -228,14 +296,21 @@ onUnmounted(() => {
     />
     <OrbitControls make-default/>
     <TransformControls v-log v-if="choosenMeshRef" :object="choosenMeshRef" v-bind="transformState" />
-    <TresAmbientLight :intensity="0.5" :color="'red'" />
-
-    <TresDirectionalLight :position="[0, 2, 4]" :intensity="1" cast-shadow />
+     <TresAmbientLight :intensity="0.5" />
+   <TresDirectionalLight
+      :position="[0, 2, 4]"
+      :intensity="1"
+      cast-shadow
+    />
+    <TresHemisphereLight
+      color="0xffffff"
+      :intensity="0.6"
+    />
     <TresGridHelper :args="[500, 50]" />
     <TresAxesHelper :args="[100]" />
     <TresGroup ref="groupRef" v-log>
        <!-- <Suspense>
-          <TexturedBall />
+          <Primitive />
        </Suspense> -->
     </TresGroup>
   </TresCanvas>

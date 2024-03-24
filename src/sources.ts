@@ -1,4 +1,3 @@
-import { sub } from './../node_modules/.pnpm/@types+three@0.152.1/node_modules/@types/_tmp_25084_982bcfcc5c1c232fd867f3d41004429f/examples/jsm/nodes/shadernode/ShaderNodeBaseElements.d';
 export default [
   {
      name: 'chair',
