@@ -94,14 +94,6 @@ const handleAddMesh = async (meshValue: string) => {
 
 const handleApplyTexture = async (textureSubtypeName: string) => {
   if (textureSubtypeName !== notChoosetext) {
-    const textureFile = sources.find(
-      (source) => source.type === "texture" && source.name === textureSubtypeName
-    )?.path;
-    if (!textureFile) {
-      console.error("Texture file not found");
-      return;
-    }
-
     const applyTexture = (texture) => {
       const modelMaterial = choosenMeshRef.value.material;
       const newMaterial = new modelMaterial.constructor();
@@ -112,6 +104,7 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
 
             if (!downloadedTexture.isCompressedTexture) {
               child.material.map = downloadedTexture.map;
+              child.material.roughnessMap = downloadedTexture.roughnessMap;
             } else {
               child.material.map = downloadedTexture;
             }
@@ -174,11 +167,32 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
           //gui.add(textureParams "repeatY").onChange(updateTexture);
     }
 
+    const textureSource = sources.find(
+      (source) => source.type === "texture" && source.name === textureSubtypeName
+    );
+    const textureFile = textureSource?.path;
+    if (!textureFile) {
+      console.error("Texture file not found");
+      return;
+    }
     let downloadTexture = null;
+    let downloadTextureOptions = {};
+    const textureSubtype = textureSource?.subtype;
+    switch (textureSubtype) {
+      case "albedo":
+        downloadTextureOptions.map = textureFile;
+        break;
+      case "roughness":
+        downloadTextureOptions.roughnessMap = textureFile;
+      case "metalness":
+        downloadTextureOptions.metalnessMap = textureFile;
+      case "normal":
+        downloadTextureOptions.normalMap = textureFile;
+      default:
+        break;
+    }
     if (!textureFile.endsWith(".ktx2")) {
-      downloadTexture = await useTexture({
-       map: textureFile,
-      });
+      downloadTexture = await useTexture(downloadTextureOptions);
       applyTexture(downloadTexture);
     } else {
       const ktx2Loader = new KTX2Loader()
@@ -190,20 +204,6 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
           texture.minFilter = NearestMipmapNearestFilter;
 
           applyTexture(texture);
-
-          // const modelMaterial = choosenMeshRef.value.material;
-          // const newMaterial = new modelMaterial.constructor();
-
-          // choosenMeshRef.value.traverse((child) => {
-          //   if (child instanceof Mesh) {
-          //     child.material.map = texture;
-          //     child.material.needsUpdate = true;
-          //   }
-          // });
-
-          //console.info(`format: ${FORMAT_LABELS[texture.format]}`);
-          //console.info(`type: ${TYPE_LABELS[texture.type]}`);
-          //console.info(`colorSpace: ${texture.colorSpace}`);
 
         } catch (e) {
           console.error(e);
@@ -235,10 +235,11 @@ const handleMouseDown = (event) => {
 
     const findRootGroupOfMesh = (intersectMesh) => {
       let currentNode = intersectMesh.parent;
-      while (!currentNode.isGroup) {
+      console.log("currentNode" ,currentNode);
+      while (currentNode?.isObject3D && !currentNode?.isGroup) {
         currentNode = currentNode.parent;
       }
-      if (currentNode.name.endsWith("_inScene")) {
+      if (currentNode?.name.endsWith("_inScene")) {
         return currentNode;
       }
       return null;
@@ -298,7 +299,6 @@ const handleMouseDown = (event) => {
 
 onMounted(() => {
   gui = new GUI();
-
   const meshes = sources
       .filter((source) => source.type === "model")
       .map((source) => source.name);
