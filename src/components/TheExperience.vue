@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { TresCanvas, useTexture } from "@tresjs/core";
 import { watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
-import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, Vector3, MeshStandardMaterial } from "three";
+import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION } from "three";
 import { OrbitControls, TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
-import { Raycaster, Vector2, RepeatWrapping } from "three";
+import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter } from "three";
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
-
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 //import TexturedBall from './TexturedBall.vue';
 //import TexturedCube from './TexturedCube.vue';
 import Primitive from './Primitive.vue';
@@ -18,7 +18,7 @@ const gl = reactive({
   outputColorSpace: SRGBColorSpace,
   toneMapping: NoToneMapping,
 });
-
+const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`;
 const cameraRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const groupRef: ShallowRef<TresInstance | null> = shallowRef(null);
@@ -28,11 +28,6 @@ let gui = null;
 let positionFolder = null;
 let textureFolder = null;
 const notChoosetext = "Не выбрано";
-
-// const pbrTexture = await useTexture({
-//   map: 'textures/albedo/albedo-wood.png',
-// })
-
 
 const transformState = shallowReactive({
   showX: true,
@@ -84,7 +79,6 @@ const handleAddMesh = async (meshValue: string) => {
 
     //remapUVs(downloadModel.scene.children[0].geometry);
 
-
     if (groupRef.value) {
       groupRef.value.children = [
         ...groupRef.value.children,
@@ -107,75 +101,116 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
       console.error("Texture file not found");
       return;
     }
-    const downloadTexture = await useTexture({
+
+    const applyTexture = (texture) => {
+      const modelMaterial = choosenMeshRef.value.material;
+      const newMaterial = new modelMaterial.constructor();
+      const downloadedTexture = texture;
+      choosenMeshRef.value.traverse((child) => {
+          if (child instanceof Mesh) {
+            child.material = newMaterial; // применяем свежий материал
+
+            if (!downloadedTexture.isCompressedTexture) {
+              child.material.map = downloadedTexture.map;
+            } else {
+              child.material.map = downloadedTexture;
+            }
+
+            child.material.map.wrapS = RepeatWrapping;
+            child.material.map.wrapT = RepeatWrapping;
+            child.material.map.x = 0.5
+            child.material.map.y = 0.5
+            child.material.map.rotation = Math.PI * 0.5
+
+            child.material.attenuationColor = modelMaterial.attenuationColor;
+            child.material.clearcoatNormalScale = modelMaterial.clearcoatNormalScale;
+          
+            child.material.defines = modelMaterial.defines;
+            child.material.emissive = modelMaterial.emissive;
+            child.material.ior = modelMaterial.ior;
+            child.material.iridescenceThicknessRange = modelMaterial.iridescenceThicknessRange;
+
+            child.material.normalScale = modelMaterial.normalScale;
+            child.material.roughness = modelMaterial.roughness;
+            child.material.sheenColor = modelMaterial.sheenColor;
+            child.material.side = modelMaterial.side;
+            child.material.specularColor = modelMaterial.specularColor;
+            child.material.specularIntensity = modelMaterial.specularIntensity
+
+            // child.material.metalness = modelMaterial.metalness; // если добавить будет "сильно" тёмная текстура
+            // child.material.color = modelMaterial.color; // если добавить будет "несильно" тёмная текстура
+          }
+      });
+
+      function compareObjects(obj1, obj2) {
+          const keys = Array.from(new Set([...Object.keys(obj1), ...Object.keys(obj2)]));
+          const diff = Object.entries({...obj1, ...obj2}).filter(([key]) => obj1[key] !== obj2[key]);
+          return Object.fromEntries(diff);
+        }
+
+      //console.log(compareObjects(modelMaterial, choosenMeshRef.value.material));
+
+      console.log("choosenMeshRef - после применения",choosenMeshRef.value);
+      // const textureParams = {
+      //   wrapS: !downloadedTexture.isCompressedTexture ? 
+      //   choosenMeshRef.value.material.map.wrapS : choosenMeshRef.value.material.wrapS,
+      //   wrapT: !downloadedTexture.isCompressedTexture ? 
+      //   choosenMeshRef.value.material.map.wrapT : choosenMeshRef.value.material.wrapT,
+      //   //repeatX: choosenMeshRef.value.material.map.repeat.x,
+      //   //repeatY: choosenMeshRef.value.material.map.repeat.y,
+      // }
+      // const updateTexture = () => {
+      //   console.log("updateTexture");
+      //   console.log(texture);
+      //   choosenMeshRef.value.material.map.wrapS = textureParams.wrapS;
+      //   choosenMeshRef.value.material.map.wrapT = textureParams.wrapT;
+      //   //choosenMeshRef.value.material.map.repeat.x = texture.repeatX;
+      //   //choosenMeshRef.value.material.map.repeat.y = texture.repeatY;
+      //   choosenMeshRef.value.material.map.needsUpdate = true;
+      // }
+      //     gui.add(textureParams, "wrapS").onChange(updateTexture);
+      //     gui.add(textureParams, "wrapT").onChange(updateTexture);
+          //gui.add(textureParams, "repeatX").onChange(updateTexture);
+          //gui.add(textureParams "repeatY").onChange(updateTexture);
+    }
+
+    let downloadTexture = null;
+    if (!textureFile.endsWith(".ktx2")) {
+      downloadTexture = await useTexture({
        map: textureFile,
-    });
+      });
+      applyTexture(downloadTexture);
+    } else {
+      const ktx2Loader = new KTX2Loader()
+      .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
+      .detectSupport(context.renderer.value); 
+      const loadKTXTexture = async () => {
+        try {
+          const texture = await ktx2Loader.loadAsync('textures/albedo/albedo-leather.ktx2');
+          texture.minFilter = NearestMipmapNearestFilter;
 
-    const modelMaterial = choosenMeshRef.value.material;
-    const newMaterial = new modelMaterial.constructor();
+          applyTexture(texture);
 
-    choosenMeshRef.value.traverse((child) => {
-       if (child instanceof Mesh) {
-        child.material = newMaterial; // применяем свежий материал
-        child.material.map = downloadTexture.map;
+          // const modelMaterial = choosenMeshRef.value.material;
+          // const newMaterial = new modelMaterial.constructor();
 
-        choosenMeshRef.value.material.map.wrapS = RepeatWrapping;
-        choosenMeshRef.value.material.map.wrapT = RepeatWrapping;
+          // choosenMeshRef.value.traverse((child) => {
+          //   if (child instanceof Mesh) {
+          //     child.material.map = texture;
+          //     child.material.needsUpdate = true;
+          //   }
+          // });
 
-        choosenMeshRef.value.material.map.x = 0.5
-        choosenMeshRef.value.material.map.y = 0.5
-        choosenMeshRef.value.material.map.rotation = Math.PI * 0.5
+          //console.info(`format: ${FORMAT_LABELS[texture.format]}`);
+          //console.info(`type: ${TYPE_LABELS[texture.type]}`);
+          //console.info(`colorSpace: ${texture.colorSpace}`);
 
-        child.material.attenuationColor = modelMaterial.attenuationColor;
-        child.material.clearcoatNormalScale = modelMaterial.clearcoatNormalScale;
-       
-        child.material.defines = modelMaterial.defines;
-        child.material.emissive = modelMaterial.emissive;
-        child.material.ior = modelMaterial.ior;
-        child.material.iridescenceThicknessRange = modelMaterial.iridescenceThicknessRange;
-
-        child.material.normalScale = modelMaterial.normalScale;
-        child.material.roughness = modelMaterial.roughness;
-        child.material.sheenColor = modelMaterial.sheenColor;
-        child.material.side = modelMaterial.side;
-        child.material.specularColor = modelMaterial.specularColor;
-        child.material.specularIntensity = modelMaterial.specularIntensity
-
-        //child.material.metalness = modelMaterial.metalness; // если добавить будет тёмное дерево
-        //child.material.color = modelMaterial.color; // если добавить будет тёмное дерево
-
-       }
-    });
-    
-
-    function compareObjects(obj1, obj2) {
-        const keys = Array.from(new Set([...Object.keys(obj1), ...Object.keys(obj2)]));
-        const diff = Object.entries({...obj1, ...obj2}).filter(([key]) => obj1[key] !== obj2[key]);
-        return Object.fromEntries(diff);
+        } catch (e) {
+          console.error(e);
+        }
+      };
+      await loadKTXTexture();
     }
-
-    console.log(compareObjects(modelMaterial, choosenMeshRef.value.material));
-
-    console.log("choosenMeshRef - после применения",choosenMeshRef.value);
-    const texture = {
-      wrapS: choosenMeshRef.value.material.map.wrapS,
-      wrapT: choosenMeshRef.value.material.map.wrapT,
-      repeatX: choosenMeshRef.value.material.map.repeat.x,
-      repeatY: choosenMeshRef.value.material.map.repeat.y,
-    }
-    const updateTexture = () => {
-      console.log("updateTexture");
-      console.log(texture);
-      choosenMeshRef.value.material.map.wrapS = texture.wrapS;
-      choosenMeshRef.value.material.map.wrapT = texture.wrapT;
-      choosenMeshRef.value.material.map.repeat.x = texture.repeatX;
-      choosenMeshRef.value.material.map.repeat.y = texture.repeatY;
-      choosenMeshRef.value.material.map.needsUpdate = true;
-	  }
-    gui.add(texture, "wrapS").onChange(updateTexture);
-    gui.add(texture, "wrapT").onChange(updateTexture);
-    gui.add(texture, "repeatX").onChange(updateTexture);
-    gui.add(texture, "repeatY").onChange(updateTexture);
   }
 };
 
