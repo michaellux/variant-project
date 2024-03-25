@@ -114,6 +114,8 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
             if (!downloadedTexture.isCompressedTexture) {
               child.material.map = downloadedTexture.map;
               child.material.roughnessMap = downloadedTexture.roughnessMap;
+              child.material.metalnessMap = downloadedTexture.metalnessMap;
+              child.material.normalMap = downloadedTexture.normalMap;
             } else {
               child.material.map = downloadedTexture;
             }
@@ -124,7 +126,7 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
             child.material.map.y = 0.5
             child.material.map.rotation = Math.PI * 0.5
 
-            child.material.attenuationColor = modelMaterial.attenuationColor;
+            /*child.material.attenuationColor = modelMaterial.attenuationColor;
             child.material.clearcoatNormalScale = modelMaterial.clearcoatNormalScale;
           
             child.material.defines = modelMaterial.defines;
@@ -139,8 +141,8 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
             child.material.specularColor = modelMaterial.specularColor;
             child.material.specularIntensity = modelMaterial.specularIntensity
 
-            // child.material.metalness = modelMaterial.metalness; // если добавить будет "сильно" тёмная текстура
-            // child.material.color = modelMaterial.color; // если добавить будет "несильно" тёмная текстура
+            child.material.metalness = modelMaterial.metalness; // если добавить будет "сильно" тёмная текстура
+            child.material.color = modelMaterial.color; // если добавить будет "несильно" тёмная текстура*/
           }
       });
 
@@ -176,27 +178,41 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
           //gui.add(textureParams "repeatY").onChange(updateTexture);
     }
 
-    const textureSource = sources.find(
-      (source) => source.type === "texture" && source.name === textureSubtypeName
-    );
-    const textureFile = textureSource?.path;
+    const getTexture = (textureSubtypeName) => {
+      return sources.find(
+        (source) => source.type === "texture" && source.name === textureSubtypeName
+      );
+    } 
+    const textureFile = getTexture(textureSubtypeName)?.path;
     if (!textureFile) {
       console.error("Texture file not found");
       return;
     }
     let downloadTexture = null;
-    let downloadTextureOptions = {};
-    const textureSubtype = textureSource?.subtype;
+    const meshNameArr = choosenMeshRef.value.name.split("|");
+    const textureInfo = JSON.parse(meshNameArr[1]);
+    let downloadTextureOptions = {
+      map: getTexture(textureInfo.albedo)?.path,
+      roughnessMap: getTexture(textureInfo.roughness)?.path,
+      metalnessMap: getTexture(textureInfo.metalness)?.path,
+      normalMap: getTexture(textureInfo.normal)?.path,
+      //sheen
+    };
+
+    const textureSubtype = getTexture(textureSubtypeName)?.subtype;
     switch (textureSubtype) {
       case "albedo":
         downloadTextureOptions.map = textureFile;
         break;
       case "roughness":
         downloadTextureOptions.roughnessMap = textureFile;
+        break;
       case "metalness":
         downloadTextureOptions.metalnessMap = textureFile;
+        break;
       case "normal":
         downloadTextureOptions.normalMap = textureFile;
+        break;
       default:
         break;
     }
