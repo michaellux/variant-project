@@ -48,7 +48,16 @@ const handleAddMesh = async (meshValue: string) => {
       binary: true,
     });
     let meshName = downloadModel.scene.children[0].name;
-    downloadModel.scene.children[0].name = `${meshName}_inScene`;
+
+    const textureInfo = {
+      albedo: notChoosetext,
+      roughness: notChoosetext,
+      metalness: notChoosetext,
+      normal: notChoosetext,
+      sheen: notChoosetext
+    };
+
+    downloadModel.scene.children[0].name = `${meshName}_inScene|${JSON.stringify(textureInfo)}`;
     downloadModel.scene.name = `${meshName}_inScene`;
     console.log(downloadModel.scene.children[0].geometry);
 
@@ -269,6 +278,9 @@ const handleMouseDown = (event) => {
           let textureSubTypeNames = new Set(textures.map((texture) => texture.subtype));
           let controls = {};
           textureSubTypeNames.forEach((subtype) => {
+            //const meshNameArr = choosenMeshRef.value.name.split("|");
+            //const textureInfo = JSON.parse(meshNameArr[1]);
+            //console.log(subtype);
             controls[subtype] = notChoosetext;
           });
           textureSubTypeNames.forEach((subtype) => {
@@ -277,12 +289,15 @@ const handleMouseDown = (event) => {
               .map((source) => source.name)
               )
             .onChange(event => {
-              console.log(event);
               handleApplyTexture(event)
+              const meshNameArr = choosenMeshRef.value.name.split("|");
+              const textureInfo = JSON.parse(meshNameArr[1]);
+              console.log(subtype);
+              textureInfo[subtype] = event;
+              choosenMeshRef.value.name = [meshNameArr[0], JSON.stringify(textureInfo)].join("|");
+            })
+            .listen()
           })
-          })
-
-          console.log("choosenMesh" ,choosenMeshRef.value);
         }
         else {
             console.log(positionFolder.controllers);
@@ -290,6 +305,11 @@ const handleMouseDown = (event) => {
             positionFolder.controllers.forEach(controller => {
               controller.object = choosenMeshRef.value.position;
             });
+            textureFolder.controllers.forEach(controller => {
+              const meshNameArr = choosenMeshRef.value.name.split("|");
+              const textureInfo = JSON.parse(meshNameArr[1]);
+              controller.object = textureInfo;
+            })
         }
         break;
       }
