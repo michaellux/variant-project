@@ -3,7 +3,7 @@ import { TresCanvas, useTexture } from "@tresjs/core";
 import { watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
 import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION } from "three";
 import { OrbitControls, TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
-import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter } from "three";
+import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader } from "three";
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
@@ -109,25 +109,27 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
     roughnessMap: null,
     metalnessMap: null,
     normalMap: null,
-    // TODO Sheen
+    sheenRoughnessMap: null,
   };
   if (textureSubtypeName !== notChoosetext) {
     const applyTexture = (texture, subtype) => {
       const downloadedTexture = texture;
       if (!downloadedTexture.isCompressedTexture) {
-          if (downloadedTexture.map !== null) {
+          if (downloadedTexture.map != null) {
             finalTexture.map = downloadedTexture.map;
           }
-          if (downloadedTexture.roughnessMap !== null) {
+          if (downloadedTexture.roughnessMap != null) {
             finalTexture.roughnessMap = downloadedTexture.roughnessMap;
           }
-          if (downloadedTexture.metalnessMap !== null) {
+          if (downloadedTexture.metalnessMap != null) {
             finalTexture.metalnessMap = downloadedTexture.metalnessMap;
           }
-          if (downloadedTexture.normalMap !== null) {
+          if (downloadedTexture.normalMap != null) {
             finalTexture.normalMap = downloadedTexture.normalMap;
           }
-          // TODO Sheen
+          if (subtype === "sheen") {
+            finalTexture.sheenRoughnessMap = downloadedTexture;
+          }
       } else {
           switch (subtype) {
             case "albedo":
@@ -142,7 +144,6 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
             case "normal":
               finalTexture.normalMap = downloadedTexture;
               break;
-              // TODO Sheen
             default:
               break;
           }
@@ -186,14 +187,16 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
       subtype: getTexture(textureInfo.normal) !== null ? getTexture(textureInfo.normal)?.subtype : null
     }
 
-    //TODO sheen
+    let sheenTexture = {
+      path: getTexture(textureInfo.sheen) !== null ? getTexture(textureInfo.sheen)?.path : null,
+      subtype: getTexture(textureInfo.sheen) !== null ? getTexture(textureInfo.sheen)?.subtype : null
+    }
 
     let downloadTextureOptions = {
       map: !albedoTexture.path?.endsWith(".ktx2") ? albedoTexture?.path : null,
       roughnessMap: !roughnessTexture.path?.endsWith(".ktx2") ? roughnessTexture?.path : null,
       metalnessMap: !metalnessTexture.path?.endsWith(".ktx2") ? metalnessTexture?.path : null,
       normalMap: !normalTexture.path?.endsWith(".ktx2") ? normalTexture?.path : null,
-      //sheen
     };
     if (!texture?.path.endsWith(".ktx2")) {
       const textureSubtype = getTexture(textureSubtypeName)?.subtype;
@@ -210,7 +213,6 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
         case "normal":
           downloadTextureOptions.normalMap = texture?.path;
           break;
-          //TODO Sheen
         default:
           break;
       }
@@ -219,6 +221,11 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
     downloadTexture = await useTexture(downloadTextureOptions);
     if (!Object.values(downloadTextureOptions).every(val => val === null)) {
       applyTexture(downloadTexture);
+    }
+    if (sheenTexture?.path !== null) {
+      const sheenLoader = new TextureLoader();
+      const texture = await sheenLoader.loadAsync(sheenTexture?.path);
+      applyTexture(texture, sheenTexture?.subtype);
     }
     const ktx2Loader = new KTX2Loader()
     .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
@@ -247,8 +254,6 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
     if (normalTexture?.path?.endsWith(".ktx2")) {
       await loadKTXTexture(normalTexture?.path, normalTexture?.subtype);
     }
-    //TODO Sheen
-
     choosenMeshRef.value.traverse((child) => {
       if (child instanceof Mesh) {
         child.material = newMaterial; // применяем свежий материал
@@ -288,7 +293,15 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
           child.material.normalMap.rotation = Math.PI * 0.5
           child.material.normalMap.needsUpdate = true;
         }
-          // TODO Sheen
+        if (finalTexture.sheenRoughnessMap !== null) {
+          child.material.sheenRoughnessMap = finalTexture.sheenRoughnessMap;
+          child.material.sheenRoughnessMap.wrapS = RepeatWrapping;
+          child.material.sheenRoughnessMap.wrapT = RepeatWrapping;
+          child.material.sheenRoughnessMap.x = 0.5
+          child.material.sheenRoughnessMap.y = 0.5
+          child.material.sheenRoughnessMap.rotation = Math.PI * 0.5
+          child.material.sheenRoughnessMap.needsUpdate = true;
+        }
 
         /*child.material.attenuationColor = modelMaterial.attenuationColor;
         child.material.clearcoatNormalScale = modelMaterial.clearcoatNormalScale;
@@ -301,6 +314,7 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
         child.material.normalScale = modelMaterial.normalScale;
         child.material.roughness = modelMaterial.roughness;
         child.material.sheenColor = modelMaterial.sheenColor;
+        child.material.sheenRoughness = modelMaterial.sheenRoughness;
         child.material.side = modelMaterial.side;
         child.material.specularColor = modelMaterial.specularColor;
         child.material.specularIntensity = modelMaterial.specularIntensity
