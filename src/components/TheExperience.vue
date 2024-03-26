@@ -103,7 +103,7 @@ const handleAddMesh = async (meshValue: string) => {
 
 const handleApplyTexture = async (textureSubtypeName: string) => {
   if (textureSubtypeName !== notChoosetext) {
-    const applyTexture = (texture) => {
+    const applyTexture = (texture, subtype) => {
       const modelMaterial = choosenMeshRef.value.material;
       const newMaterial = new modelMaterial.constructor();
       const downloadedTexture = texture;
@@ -112,19 +112,81 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
             child.material = newMaterial; // применяем свежий материал
 
             if (!downloadedTexture.isCompressedTexture) {
-              child.material.map = downloadedTexture.map;
-              child.material.roughnessMap = downloadedTexture.roughnessMap;
-              child.material.metalnessMap = downloadedTexture.metalnessMap;
-              child.material.normalMap = downloadedTexture.normalMap;
+              if (downloadedTexture.map !== null) {
+                child.material.map = downloadedTexture.map;
+                child.material.map.wrapS = RepeatWrapping;
+                child.material.map.wrapT = RepeatWrapping;
+                child.material.map.x = 0.5
+                child.material.map.y = 0.5
+                child.material.map.rotation = Math.PI * 0.5
+              }
+              if (downloadedTexture.roughnessMap !== null) {
+                child.material.roughnessMap = downloadedTexture.roughnessMap;
+                child.material.roughnessMap.wrapS = RepeatWrapping;
+                child.material.roughnessMap.wrapT = RepeatWrapping;
+                child.material.roughnessMap.x = 0.5
+                child.material.roughnessMap.y = 0.5
+                child.material.roughnessMap.rotation = Math.PI * 0.5
+              }
+              if (downloadedTexture.metalnessMap !== null) {
+                child.material.metalnessMap = downloadedTexture.metalnessMap;
+                child.material.metalnessMap.wrapS = RepeatWrapping;
+                child.material.metalnessMap.wrapT = RepeatWrapping;
+                child.material.metalnessMap.x = 0.5
+                child.material.metalnessMap.y = 0.5
+                child.material.metalnessMap.rotation = Math.PI * 0.5
+              }
+              if (downloadedTexture.normalMap !== null) {
+                child.material.normalMap = downloadedTexture.normalMap;
+                child.material.normalMap.wrapS = RepeatWrapping;
+                child.material.normalMap.wrapT = RepeatWrapping;
+                child.material.normalMap.x = 0.5
+                child.material.normalMap.y = 0.5
+                child.material.normalMap.rotation = Math.PI * 0.5
+              }
+              // TODO Sheen
             } else {
-              child.material.map = downloadedTexture;
+              switch (subtype) {
+                case "albedo":
+                  child.material.map = downloadedTexture;
+                  child.material.map.wrapS = RepeatWrapping;
+                  child.material.map.wrapT = RepeatWrapping;
+                  child.material.map.x = 0.5
+                  child.material.map.y = 0.5
+                  child.material.map.rotation = Math.PI * 0.5
+                  break;
+                case "roughness":
+                  child.material.roughnessMap = downloadedTexture;
+                  child.material.roughnessMap.wrapS = RepeatWrapping;
+                  child.material.roughnessMap.wrapT = RepeatWrapping;
+                  child.material.roughnessMap.x = 0.5
+                  child.material.roughnessMap.y = 0.5
+                  child.material.roughnessMap.rotation = Math.PI * 0.5
+                  break;
+                case "metalness":
+                  child.material.metalnessMap = downloadedTexture;
+                  child.material.metalnessMap.wrapS = RepeatWrapping;
+                  child.material.metalnessMap.wrapT = RepeatWrapping;
+                  child.material.metalnessMap.x = 0.5
+                  child.material.metalnessMap.y = 0.5
+                  child.material.metalnessMap.rotation = Math.PI * 0.5
+                  break;
+                case "normal":
+                  child.material.normalMap = downloadedTexture;
+                  child.material.normalMap.wrapS = RepeatWrapping;
+                  child.material.normalMap.wrapT = RepeatWrapping;
+                  child.material.normalMap.x = 0.5
+                  child.material.normalMap.y = 0.5
+                  child.material.normalMap.rotation = Math.PI * 0.5
+                  break;
+                  // TODO Sheen
+                default:
+                  break;
+              }
+              
             }
 
-            child.material.map.wrapS = RepeatWrapping;
-            child.material.map.wrapT = RepeatWrapping;
-            child.material.map.x = 0.5
-            child.material.map.y = 0.5
-            child.material.map.rotation = Math.PI * 0.5
+
 
             /*child.material.attenuationColor = modelMaterial.attenuationColor;
             child.material.clearcoatNormalScale = modelMaterial.clearcoatNormalScale;
@@ -145,15 +207,6 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
             child.material.color = modelMaterial.color; // если добавить будет "несильно" тёмная текстура*/
           }
       });
-
-      function compareObjects(obj1, obj2) {
-          const keys = Array.from(new Set([...Object.keys(obj1), ...Object.keys(obj2)]));
-          const diff = Object.entries({...obj1, ...obj2}).filter(([key]) => obj1[key] !== obj2[key]);
-          return Object.fromEntries(diff);
-        }
-
-      //console.log(compareObjects(modelMaterial, choosenMeshRef.value.material));
-
       console.log("choosenMeshRef - после применения",choosenMeshRef.value);
       // const textureParams = {
       //   wrapS: !downloadedTexture.isCompressedTexture ? 
@@ -179,63 +232,100 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
     }
 
     const getTexture = (textureSubtypeName) => {
-      return sources.find(
-        (source) => source.type === "texture" && source.name === textureSubtypeName
-      );
+      if (textureSubtypeName !== notChoosetext) {
+        return sources.find(
+          (source) => source.type === "texture" && source.name === textureSubtypeName
+        );
+      }
+      return null;
     } 
-    const textureFile = getTexture(textureSubtypeName)?.path;
-    if (!textureFile) {
+    const texture = {
+      path: getTexture(textureSubtypeName) !== null ? getTexture(textureSubtypeName)?.path : null,
+      subtype: getTexture(textureSubtypeName) !== null ? getTexture(textureSubtypeName)?.subtype : null
+    }
+    if (!texture) {
       console.error("Texture file not found");
       return;
     }
     let downloadTexture = null;
     const meshNameArr = choosenMeshRef.value.name.split("|");
     const textureInfo = JSON.parse(meshNameArr[1]);
+
+    let albedoTexture = { 
+      path: getTexture(textureInfo.albedo) !== null ? getTexture(textureInfo.albedo)?.path : null,
+      subtype: getTexture(textureInfo.albedo) !== null ? getTexture(textureInfo.albedo)?.subtype : null
+    };
+    let roughnessTexture = {
+      path: getTexture(textureInfo.roughness) !== null ? getTexture(textureInfo.roughness)?.path : null,
+      subtype: getTexture(textureInfo.roughness) ? getTexture(textureInfo.roughness)?.subtype : null
+    };
+    let metalnessTexture = {
+      path: getTexture(textureInfo.metalness) !== null ? getTexture(textureInfo.metalness)?.path : null,
+      subtype: getTexture(textureInfo.metalness) !== null ? getTexture(textureInfo.metalness)?.subtype : null
+    }
+    let normalTexture = {
+      path: getTexture(textureInfo.normal) !== null ? getTexture(textureInfo.normal)?.path : null,
+      subtype: getTexture(textureInfo.normal) !== null ? getTexture(textureInfo.normal)?.subtype : null
+    }
+
+    //TODO sheen
+
     let downloadTextureOptions = {
-      map: getTexture(textureInfo.albedo)?.path,
-      roughnessMap: getTexture(textureInfo.roughness)?.path,
-      metalnessMap: getTexture(textureInfo.metalness)?.path,
-      normalMap: getTexture(textureInfo.normal)?.path,
+      map: !albedoTexture.path?.endsWith(".ktx2") ? albedoTexture?.path : null,
+      roughnessMap: !roughnessTexture.path?.endsWith(".ktx2") ? roughnessTexture?.path : null,
+      metalnessMap: !metalnessTexture.path?.endsWith(".ktx2") ? metalnessTexture?.path : null,
+      normalMap: !normalTexture.path?.endsWith(".ktx2") ? normalTexture?.path : null,
       //sheen
     };
-
-    const textureSubtype = getTexture(textureSubtypeName)?.subtype;
-    switch (textureSubtype) {
-      case "albedo":
-        downloadTextureOptions.map = textureFile;
-        break;
-      case "roughness":
-        downloadTextureOptions.roughnessMap = textureFile;
-        break;
-      case "metalness":
-        downloadTextureOptions.metalnessMap = textureFile;
-        break;
-      case "normal":
-        downloadTextureOptions.normalMap = textureFile;
-        break;
-      default:
-        break;
+    if (!texture?.path.endsWith(".ktx2")) {
+      const textureSubtype = getTexture(textureSubtypeName)?.subtype;
+      switch (textureSubtype) {
+        case "albedo":
+          downloadTextureOptions.map = texture;
+          break;
+        case "roughness":
+          downloadTextureOptions.roughnessMap = texture;
+          break;
+        case "metalness":
+          downloadTextureOptions.metalnessMap = texture;
+          break;
+        case "normal":
+          downloadTextureOptions.normalMap = texture;
+          break;
+        default:
+          break;
+      }
     }
-    if (!textureFile.endsWith(".ktx2")) {
-      downloadTexture = await useTexture(downloadTextureOptions);
-      applyTexture(downloadTexture);
-    } else {
-      const ktx2Loader = new KTX2Loader()
-      .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
-      .detectSupport(context.renderer.value); 
-      const loadKTXTexture = async () => {
-        try {
-          const texture = await ktx2Loader.loadAsync('textures/albedo/albedo-leather.ktx2');
-          texture.minFilter = NearestMipmapNearestFilter;
-
-          applyTexture(texture);
-
-        } catch (e) {
-          console.error(e);
-        }
-      };
-      await loadKTXTexture();
+    downloadTexture = await useTexture(downloadTextureOptions);
+    applyTexture(downloadTexture);
+    const ktx2Loader = new KTX2Loader()
+    .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
+    .detectSupport(context.renderer.value); 
+    const loadKTXTexture = async (texturePath, textureSubtype) => {
+      try {
+        const texture = await ktx2Loader.loadAsync(texturePath);
+        texture.minFilter = NearestMipmapNearestFilter;
+        applyTexture(texture, textureSubtype);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    if (texture?.path?.endsWith(".ktx2")) {
+      await loadKTXTexture(texture?.path, texture?.subtype);
     }
+    if (albedoTexture?.path?.endsWith(".ktx2")) {
+      await loadKTXTexture(albedoTexture?.path, albedoTexture?.subtype);
+    }
+    if (roughnessTexture?.path?.endsWith(".ktx2")) {
+      await loadKTXTexture(roughnessTexture?.path, roughnessTexture?.subtype);
+    }
+    if (metalnessTexture?.path?.endsWith(".ktx2")) {
+      await loadKTXTexture(metalnessTexture?.path, metalnessTexture?.subtype);
+    }
+    if (normalTexture?.path?.endsWith(".ktx2")) {
+      await loadKTXTexture(normalTexture?.path, normalTexture?.subtype);
+    }
+    //TODO Sheen
   }
 };
 
