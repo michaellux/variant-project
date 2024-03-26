@@ -35,6 +35,13 @@ const transformState = shallowReactive({
   showZ: true,
 });
 
+const controlValues = {
+  mesh: notChoosetext,
+  addMesh: function() {
+    handleAddMesh(this.mesh)
+  }
+}
+
 const handleAddMesh = async (meshValue: string) => {
   if (meshValue !== notChoosetext) {
     const modelFile = sources.find(
@@ -326,6 +333,40 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
   }
 };
 
+const handleDeleteMesh = () => {
+  const removeByKey = (array, key, value) => {
+    const index = array.findIndex(item => item[key] === value);
+    if (index !== -1) {
+        array.splice(index, 1);
+    }
+    return array;
+  }
+
+  if (choosenMeshRef.value) {
+    const rootMeshGroup = choosenMeshRef.value.parent;
+    const target = rootMeshGroup.uuid;
+    console.log(groupRef.value.children);
+    removeByKey(groupRef.value.children, 'uuid', target);
+    console.log(groupRef.value.children);
+    choosenMeshRef.value.traverse((child) => {
+      if (child instanceof Mesh) {
+        if (child.geometry) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(material => material.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      }
+    });
+    choosenMeshRef.value = null;
+    rootMeshGroup.value = null;
+  }
+};
+
 const raycaster = new Raycaster();
 const mouse = new Vector2();
 
@@ -414,7 +455,12 @@ const handleMouseDown = (event) => {
               controller.object = textureInfo;
             })
         }
-        break;
+        if (controlValues.removeMesh == null) {
+          controlValues.removeMesh = function() {
+            handleDeleteMesh();
+          }
+          gui.add(controlValues, "removeMesh").name("Delete");
+        }
       }
     }
   }
@@ -425,14 +471,9 @@ onMounted(() => {
   const meshes = sources
       .filter((source) => source.type === "model")
       .map((source) => source.name);
-  const controlValues = {
-    mesh: notChoosetext,
-    addMesh: function() {
-      handleAddMesh(this.mesh)
-    }
-  }
+
   gui.add(controlValues, "mesh", meshes);
-  gui.add(controlValues, "addMesh");
+  gui.add(controlValues, "addMesh").name("Add mesh");
   document.addEventListener("mousedown", handleMouseDown, false);
 });
 
