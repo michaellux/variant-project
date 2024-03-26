@@ -102,133 +102,51 @@ const handleAddMesh = async (meshValue: string) => {
 };
 
 const handleApplyTexture = async (textureSubtypeName: string) => {
+  const modelMaterial = choosenMeshRef.value.material;
+  const newMaterial = new modelMaterial.constructor();
+  let finalTexture = {
+    map: null,
+    roughnessMap: null,
+    metalnessMap: null,
+    normalMap: null,
+    // TODO Sheen
+  };
   if (textureSubtypeName !== notChoosetext) {
     const applyTexture = (texture, subtype) => {
-      const modelMaterial = choosenMeshRef.value.material;
-      const newMaterial = new modelMaterial.constructor();
       const downloadedTexture = texture;
-      choosenMeshRef.value.traverse((child) => {
-          if (child instanceof Mesh) {
-            child.material = newMaterial; // применяем свежий материал
-
-            if (!downloadedTexture.isCompressedTexture) {
-              if (downloadedTexture.map !== null) {
-                child.material.map = downloadedTexture.map;
-                child.material.map.wrapS = RepeatWrapping;
-                child.material.map.wrapT = RepeatWrapping;
-                child.material.map.x = 0.5
-                child.material.map.y = 0.5
-                child.material.map.rotation = Math.PI * 0.5
-              }
-              if (downloadedTexture.roughnessMap !== null) {
-                child.material.roughnessMap = downloadedTexture.roughnessMap;
-                child.material.roughnessMap.wrapS = RepeatWrapping;
-                child.material.roughnessMap.wrapT = RepeatWrapping;
-                child.material.roughnessMap.x = 0.5
-                child.material.roughnessMap.y = 0.5
-                child.material.roughnessMap.rotation = Math.PI * 0.5
-              }
-              if (downloadedTexture.metalnessMap !== null) {
-                child.material.metalnessMap = downloadedTexture.metalnessMap;
-                child.material.metalnessMap.wrapS = RepeatWrapping;
-                child.material.metalnessMap.wrapT = RepeatWrapping;
-                child.material.metalnessMap.x = 0.5
-                child.material.metalnessMap.y = 0.5
-                child.material.metalnessMap.rotation = Math.PI * 0.5
-              }
-              if (downloadedTexture.normalMap !== null) {
-                child.material.normalMap = downloadedTexture.normalMap;
-                child.material.normalMap.wrapS = RepeatWrapping;
-                child.material.normalMap.wrapT = RepeatWrapping;
-                child.material.normalMap.x = 0.5
-                child.material.normalMap.y = 0.5
-                child.material.normalMap.rotation = Math.PI * 0.5
-              }
-              // TODO Sheen
-            } else {
-              switch (subtype) {
-                case "albedo":
-                  child.material.map = downloadedTexture;
-                  child.material.map.wrapS = RepeatWrapping;
-                  child.material.map.wrapT = RepeatWrapping;
-                  child.material.map.x = 0.5
-                  child.material.map.y = 0.5
-                  child.material.map.rotation = Math.PI * 0.5
-                  break;
-                case "roughness":
-                  child.material.roughnessMap = downloadedTexture;
-                  child.material.roughnessMap.wrapS = RepeatWrapping;
-                  child.material.roughnessMap.wrapT = RepeatWrapping;
-                  child.material.roughnessMap.x = 0.5
-                  child.material.roughnessMap.y = 0.5
-                  child.material.roughnessMap.rotation = Math.PI * 0.5
-                  break;
-                case "metalness":
-                  child.material.metalnessMap = downloadedTexture;
-                  child.material.metalnessMap.wrapS = RepeatWrapping;
-                  child.material.metalnessMap.wrapT = RepeatWrapping;
-                  child.material.metalnessMap.x = 0.5
-                  child.material.metalnessMap.y = 0.5
-                  child.material.metalnessMap.rotation = Math.PI * 0.5
-                  break;
-                case "normal":
-                  child.material.normalMap = downloadedTexture;
-                  child.material.normalMap.wrapS = RepeatWrapping;
-                  child.material.normalMap.wrapT = RepeatWrapping;
-                  child.material.normalMap.x = 0.5
-                  child.material.normalMap.y = 0.5
-                  child.material.normalMap.rotation = Math.PI * 0.5
-                  break;
-                  // TODO Sheen
-                default:
-                  break;
-              }
-              
-            }
-
-
-
-            /*child.material.attenuationColor = modelMaterial.attenuationColor;
-            child.material.clearcoatNormalScale = modelMaterial.clearcoatNormalScale;
-          
-            child.material.defines = modelMaterial.defines;
-            child.material.emissive = modelMaterial.emissive;
-            child.material.ior = modelMaterial.ior;
-            child.material.iridescenceThicknessRange = modelMaterial.iridescenceThicknessRange;
-
-            child.material.normalScale = modelMaterial.normalScale;
-            child.material.roughness = modelMaterial.roughness;
-            child.material.sheenColor = modelMaterial.sheenColor;
-            child.material.side = modelMaterial.side;
-            child.material.specularColor = modelMaterial.specularColor;
-            child.material.specularIntensity = modelMaterial.specularIntensity
-
-            child.material.metalness = modelMaterial.metalness; // если добавить будет "сильно" тёмная текстура
-            child.material.color = modelMaterial.color; // если добавить будет "несильно" тёмная текстура*/
+      if (!downloadedTexture.isCompressedTexture) {
+          if (downloadedTexture.map !== null) {
+            finalTexture.map = downloadedTexture.map;
           }
-      });
-      console.log("choosenMeshRef - после применения",choosenMeshRef.value);
-      // const textureParams = {
-      //   wrapS: !downloadedTexture.isCompressedTexture ? 
-      //   choosenMeshRef.value.material.map.wrapS : choosenMeshRef.value.material.wrapS,
-      //   wrapT: !downloadedTexture.isCompressedTexture ? 
-      //   choosenMeshRef.value.material.map.wrapT : choosenMeshRef.value.material.wrapT,
-      //   //repeatX: choosenMeshRef.value.material.map.repeat.x,
-      //   //repeatY: choosenMeshRef.value.material.map.repeat.y,
-      // }
-      // const updateTexture = () => {
-      //   console.log("updateTexture");
-      //   console.log(texture);
-      //   choosenMeshRef.value.material.map.wrapS = textureParams.wrapS;
-      //   choosenMeshRef.value.material.map.wrapT = textureParams.wrapT;
-      //   //choosenMeshRef.value.material.map.repeat.x = texture.repeatX;
-      //   //choosenMeshRef.value.material.map.repeat.y = texture.repeatY;
-      //   choosenMeshRef.value.material.map.needsUpdate = true;
-      // }
-      //     gui.add(textureParams, "wrapS").onChange(updateTexture);
-      //     gui.add(textureParams, "wrapT").onChange(updateTexture);
-          //gui.add(textureParams, "repeatX").onChange(updateTexture);
-          //gui.add(textureParams "repeatY").onChange(updateTexture);
+          if (downloadedTexture.roughnessMap !== null) {
+            finalTexture.roughnessMap = downloadedTexture.roughnessMap;
+          }
+          if (downloadedTexture.metalnessMap !== null) {
+            finalTexture.metalnessMap = downloadedTexture.metalnessMap;
+          }
+          if (downloadedTexture.normalMap !== null) {
+            finalTexture.normalMap = downloadedTexture.normalMap;
+          }
+          // TODO Sheen
+      } else {
+          switch (subtype) {
+            case "albedo":
+              finalTexture.map = downloadedTexture;
+              break;
+            case "roughness":
+              finalTexture.roughnessMap = downloadedTexture;
+              break;
+            case "metalness":
+              finalTexture.metalnessMap = downloadedTexture;
+              break;
+            case "normal":
+              finalTexture.normalMap = downloadedTexture;
+              break;
+              // TODO Sheen
+            default:
+              break;
+          }
+      }
     }
 
     const getTexture = (textureSubtypeName) => {
@@ -281,23 +199,27 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
       const textureSubtype = getTexture(textureSubtypeName)?.subtype;
       switch (textureSubtype) {
         case "albedo":
-          downloadTextureOptions.map = texture;
+          downloadTextureOptions.map = texture?.path;
           break;
         case "roughness":
-          downloadTextureOptions.roughnessMap = texture;
+          downloadTextureOptions.roughnessMap = texture?.path;
           break;
         case "metalness":
-          downloadTextureOptions.metalnessMap = texture;
+          downloadTextureOptions.metalnessMap = texture?.path;
           break;
         case "normal":
-          downloadTextureOptions.normalMap = texture;
+          downloadTextureOptions.normalMap = texture?.path;
           break;
+          //TODO Sheen
         default:
           break;
       }
     }
+
     downloadTexture = await useTexture(downloadTextureOptions);
-    applyTexture(downloadTexture);
+    if (!Object.values(downloadTextureOptions).every(val => val === null)) {
+      applyTexture(downloadTexture);
+    }
     const ktx2Loader = new KTX2Loader()
     .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
     .detectSupport(context.renderer.value); 
@@ -326,6 +248,67 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
       await loadKTXTexture(normalTexture?.path, normalTexture?.subtype);
     }
     //TODO Sheen
+
+    choosenMeshRef.value.traverse((child) => {
+      if (child instanceof Mesh) {
+        child.material = newMaterial; // применяем свежий материал
+        if (finalTexture.map !== null) {
+          child.material.map = finalTexture.map;
+          child.material.map.wrapS = RepeatWrapping;
+          child.material.map.wrapT = RepeatWrapping;
+          child.material.map.x = 0.5
+          child.material.map.y = 0.5
+          child.material.map.rotation = Math.PI * 0.5
+          child.material.map.needsUpdate = true;
+        }
+        if (finalTexture.roughnessMap !== null) {
+          child.material.roughnessMap = finalTexture.roughnessMap;
+          child.material.roughnessMap.wrapS = RepeatWrapping;
+          child.material.roughnessMap.wrapT = RepeatWrapping;
+          child.material.roughnessMap.x = 0.5
+          child.material.roughnessMap.y = 0.5
+          child.material.roughnessMap.rotation = Math.PI * 0.5
+          child.material.roughnessMap.needsUpdate = true;
+        }
+        if (finalTexture.metalnessMap !== null) {
+          child.material.metalnessMap = finalTexture.metalnessMap;
+          child.material.metalnessMap.wrapS = RepeatWrapping;
+          child.material.metalnessMap.wrapT = RepeatWrapping;
+          child.material.metalnessMap.x = 0.5
+          child.material.metalnessMap.y = 0.5
+          child.material.metalnessMap.rotation = Math.PI * 0.5
+          child.material.metalnessMap.needsUpdate = true;
+        }
+        if (finalTexture.normalMap !== null) {
+          child.material.normalMap = finalTexture.normalMap;
+          child.material.normalMap.wrapS = RepeatWrapping;
+          child.material.normalMap.wrapT = RepeatWrapping;
+          child.material.normalMap.x = 0.5
+          child.material.normalMap.y = 0.5
+          child.material.normalMap.rotation = Math.PI * 0.5
+          child.material.normalMap.needsUpdate = true;
+        }
+          // TODO Sheen
+
+        /*child.material.attenuationColor = modelMaterial.attenuationColor;
+        child.material.clearcoatNormalScale = modelMaterial.clearcoatNormalScale;
+      
+        child.material.defines = modelMaterial.defines;
+        child.material.emissive = modelMaterial.emissive;
+        child.material.ior = modelMaterial.ior;
+        child.material.iridescenceThicknessRange = modelMaterial.iridescenceThicknessRange;
+
+        child.material.normalScale = modelMaterial.normalScale;
+        child.material.roughness = modelMaterial.roughness;
+        child.material.sheenColor = modelMaterial.sheenColor;
+        child.material.side = modelMaterial.side;
+        child.material.specularColor = modelMaterial.specularColor;
+        child.material.specularIntensity = modelMaterial.specularIntensity
+
+        child.material.metalness = modelMaterial.metalness; // если добавить будет "сильно" тёмная текстура
+        child.material.color = modelMaterial.color; // если добавить будет "несильно" тёмная текстура*/
+      }
+    });
   }
 };
 
@@ -395,12 +378,12 @@ const handleMouseDown = (event) => {
               .map((source) => source.name)
               )
             .onChange(event => {
-              handleApplyTexture(event)
               const meshNameArr = choosenMeshRef.value.name.split("|");
               const textureInfo = JSON.parse(meshNameArr[1]);
               console.log(subtype);
               textureInfo[subtype] = event;
               choosenMeshRef.value.name = [meshNameArr[0], JSON.stringify(textureInfo)].join("|");
+              handleApplyTexture(event)
             })
             .listen()
           })
