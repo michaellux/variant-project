@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { TresCanvas, useTexture } from "@tresjs/core";
-import { watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
+import { watch, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
 import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION } from "three";
 import { OrbitControls, TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
-import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader } from "three";
+import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader, ObjectLoader } from "three";
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
@@ -100,12 +100,14 @@ const handleAddMesh = async (meshValue: string) => {
         ...groupRef.value.children,
         downloadModel.scene,
       ];
+      
     } else {
       console.error("groupRef is not initialized");
     }
   } else {
     alert("Не выбрана геометрия!");
   }
+  saveSceneState();
 };
 
 const handleApplyTexture = async (textureSubtypeName: string) => {
@@ -331,6 +333,7 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
       }
     });
   }
+  saveSceneState();
 };
 
 const handleDeleteMesh = () => {
@@ -365,7 +368,38 @@ const handleDeleteMesh = () => {
     choosenMeshRef.value = null;
     rootMeshGroup.value = null;
   }
+  saveSceneState();
 };
+
+const createSceneState = () => {
+  console.log(context.scene.value.children);
+  const sceneState = {
+    objects: context.scene.value.children
+  };
+  return JSON.stringify(sceneState);
+}
+
+const saveSceneState = () => {
+  const sceneState = createSceneState();
+  localStorage.setItem('sceneState', sceneState);
+  console.log("Сохранили изменение");
+}
+
+const loadSceneState = () => {
+  const savedState = JSON.parse(localStorage.getItem('sceneState'));
+  if (savedState) {
+    if (canvasRef.value) {
+      const loader = new ObjectLoader();
+      canvasRef.value.context.scene.value.children = [];
+      savedState.objects.forEach(object => {
+        canvasRef.value.context.scene.value.children = [...canvasRef.value.context.scene.value.children, loader.parse(object)];
+      });
+    } else {
+      console.error("groupRef is not initialized");
+    }
+  }
+}
+
 
 const raycaster = new Raycaster();
 const mouse = new Vector2();
@@ -464,6 +498,7 @@ const handleMouseDown = (event) => {
       }
     }
   }
+  saveSceneState();
 };
 
 onMounted(() => {
@@ -475,10 +510,22 @@ onMounted(() => {
   gui.add(controlValues, "mesh", meshes);
   gui.add(controlValues, "addMesh").name("Add mesh");
   document.addEventListener("mousedown", handleMouseDown, false);
+  document.addEventListener("mouseup", saveSceneState, false);
 });
+
+watch(
+ () => groupRef.value,
+ (newValue, oldValue) => {
+    if (newValue && localStorage.getItem("sceneState") !== null) {
+      loadSceneState();
+    }
+ },
+ { immediate: true }
+);
 
 onUnmounted(() => {
   document.removeEventListener("mousedown", handleMouseDown, false);
+  document.removeEventListener("mouseup", saveSceneState, false);
 });
 </script>
 
@@ -507,10 +554,12 @@ onUnmounted(() => {
     />
     <TresGridHelper :args="[500, 50]" />
     <TresAxesHelper :args="[100]" />
+    <Suspense>
     <TresGroup ref="groupRef" v-log>
        <!-- <Suspense>
           <Primitive />
        </Suspense> -->
     </TresGroup>
+    </Suspense>
   </TresCanvas>
 </template>
