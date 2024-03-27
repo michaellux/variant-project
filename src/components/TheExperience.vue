@@ -2,7 +2,7 @@
 import { TresCanvas, useTexture, useRenderLoop } from "@tresjs/core";
 import { watch, watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
 import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION } from "three";
-import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
 import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader, ObjectLoader } from "three";
 import sources from "../sources";
@@ -389,23 +389,18 @@ const saveRootGroupState = () => {
 }
 
 const saveCameraState = () => {
-  console.log(saveCameraState);
+  localStorage.setItem("camera.position.x", cameraRef.value.position.x.toString())
+  localStorage.setItem("camera.position.y", cameraRef.value.position.y.toString())
+  localStorage.setItem("camera.position.z", cameraRef.value.position.z.toString())
+  localStorage.setItem("camera.rotation.x", cameraRef.value.rotation.x.toString())
+  localStorage.setItem("camera.rotation.y", cameraRef.value.rotation.y.toString())
+  localStorage.setItem("camera.rotation.z", cameraRef.value.rotation.z.toString())
+  localStorage.setItem("camera.zoom", cameraRef.value.zoom.toString())
 
-localStorage.setItem("camera.position.x", cameraRef.value.position.x.toString())
-localStorage.setItem("camera.position.y", cameraRef.value.position.y.toString())
-localStorage.setItem("camera.position.z", cameraRef.value.position.z.toString())
-localStorage.setItem("camera.rotation.x", cameraRef.value.rotation.x.toString())
-localStorage.setItem("camera.rotation.y", cameraRef.value.rotation.y.toString())
-localStorage.setItem("camera.rotation.z", cameraRef.value.rotation.z.toString())
-localStorage.setItem("camera.zoom", cameraRef.value.zoom.toString())
-
-//localStorage.setItem("controls.target.x", orbitControlsRef.value.target.x.toString())
-//localStorage.setItem("controls.target.y", orbitControlsRef.value.target.y.toString())
-//localStorage.setItem("controls.target.z", orbitControlsRef.value.target.z.toString())
- //saveOrbitControlsState();
+  localStorage.setItem("controls.target.x", cameraControls.target.x.toString())
+  localStorage.setItem("controls.target.y", cameraControls.target.y.toString())
+  localStorage.setItem("controls.target.z", cameraControls.target.z.toString())
 };
-
-
 
 const saveOrbitControlsState = () => {
  console.log(controlsState);
@@ -559,8 +554,7 @@ onMounted(() => {
       rootGroup: [],
     };
     localStorage.setItem("rootGroupState", JSON.stringify(sceneState));
-  }
-   
+  }   
 });
 
 const { onLoop, resume } = useRenderLoop()
@@ -588,7 +582,6 @@ watch(
  (newValue, oldValue) => {
     if (newValue) {
       if (canvasRef.value.context.renderer.value) {
-          CameraControls.install({ THREE });
           const camera = canvasRef.value.context.camera.value;
           const loadCameraState = () => {
  console.log("loadCameraState");
@@ -602,19 +595,24 @@ watch(
     camera.rotation.z = parseFloat(localStorage.getItem("camera.rotation.z"))
 
     camera.zoom = parseFloat(localStorage.getItem("camera.zoom"))
-
-    //camera.updateProjectionMatrix();
  }
 };
 
           loadCameraState();
 
           // Initialize CameraControls
-          cameraControls = new CameraControls(camera, canvasRef.value.context.renderer.value.domElement);
+          cameraControls = new OrbitControls(camera, canvasRef.value.context.renderer.value.domElement);
 
+          if (localStorage.getItem("controls.target.x") !== null) {
+            cameraControls.target.x = parseFloat(localStorage.getItem("controls.target.x"))
+            cameraControls.target.y = parseFloat(localStorage.getItem("controls.target.y"))
+            cameraControls.target.z = parseFloat(localStorage.getItem("controls.target.z"))
+          }
           // Optionally, configure CameraControls as needed
           cameraControls.enableDamping = true; // for smooth movement
           cameraControls.dampingFactor = 0.05; // adjust as needed
+          cameraControls.enableZoom = true;
+          cameraControls.zoomSpeed = 1.0;
       }
     }
  },
@@ -633,7 +631,6 @@ onUnmounted(() => {
     <TresPerspectiveCamera
       ref="cameraRef"
     />
-    <!-- <CameraControls v-bind="controlsState" ref="orbitControlsRef" @change="saveCameraState"/> -->
     <TransformControls v-log v-if="choosenMeshRef" :object="choosenMeshRef" v-bind="transformState" />
      <TresAmbientLight :intensity="0.5" />
    <TresDirectionalLight
