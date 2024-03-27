@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { TresCanvas, useTexture } from "@tresjs/core";
+import { TresCanvas, useTexture, useRenderLoop } from "@tresjs/core";
 import { watch, watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
 import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION } from "three";
-import { CameraControls, TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
+import * as THREE from 'three';
+import { TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
 import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader, ObjectLoader } from "three";
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import CameraControls from 'camera-controls';
 const gl = reactive({
   clearColor: "#b9b9b4",
   shadows: true,
@@ -14,10 +16,6 @@ const gl = reactive({
   shadowMapType: BasicShadowMap,
   outputColorSpace: SRGBColorSpace,
   toneMapping: NoToneMapping,
-});
-
-const controlsState = reactive({
-
 });
 
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`;
@@ -45,8 +43,9 @@ const controlValues = {
   }
 }
 
+let cameraControls = null;
+
 const handleAddMesh = async (meshValue: string) => {
-  loadCameraState();
   if (meshValue !== notChoosetext) {
     const modelFile = sources.find(
       (source) => source.type === "model" && source.name === meshValue
@@ -391,11 +390,7 @@ const saveRootGroupState = () => {
 
 const saveCameraState = () => {
   console.log(saveCameraState);
-//   const cameraState = {
-//     position: cameraRef.value.position.toArray(),
-//     quaternion: cameraRef.value.quaternion.toArray(),
-//  };
-//  localStorage.setItem("cameraState", JSON.stringify(cameraState));
+
 localStorage.setItem("camera.position.x", cameraRef.value.position.x.toString())
 localStorage.setItem("camera.position.y", cameraRef.value.position.y.toString())
 localStorage.setItem("camera.position.z", cameraRef.value.position.z.toString())
@@ -410,30 +405,7 @@ localStorage.setItem("camera.zoom", cameraRef.value.zoom.toString())
  //saveOrbitControlsState();
 };
 
-const loadCameraState = () => {
- console.log("loadCameraState");
- //const savedState = JSON.parse(localStorage.getItem("cameraState"));
- if (localStorage.getItem("camera.position.x") !== null) {
-    cameraRef.value.position.x = parseFloat(localStorage.getItem("camera.position.x"))
-    cameraRef.value.position.y = parseFloat(localStorage.getItem("camera.position.y"))
-    cameraRef.value.position.z = parseFloat(localStorage.getItem("camera.position.z"))
 
-    cameraRef.value.rotation.x = parseFloat(localStorage.getItem("camera.rotation.x"))
-    cameraRef.value.rotation.y = parseFloat(localStorage.getItem("camera.rotation.y"))
-    cameraRef.value.rotation.z = parseFloat(localStorage.getItem("camera.rotation.z"))
-
-    cameraRef.value.zoom = parseFloat(localStorage.getItem("camera.zoom"))
-
-    cameraRef.value.updateProjectionMatrix();
-
-    //orbitControlsRef.target.x = parseFloat(localStorage.getItem("controls.target.x"))
-    //orbitControlsRef.target.y = parseFloat(localStorage.getItem("controls.target.y"))
-    //orbitControlsRef.target.z = parseFloat(localStorage.getItem("controls.target.z"))
-
-
-    //loadOrbitControlsState();
- }
-};
 
 const saveOrbitControlsState = () => {
  console.log(controlsState);
@@ -463,17 +435,12 @@ const loadRootGroupState = () => {
     } else {
       console.error("groupRef is not initialized");
     }
-    if (cameraRef.value) {
-      //const cameraState = localStorage.getItem("cameraState");
-      //if (cameraState !== null) {
-      loadCameraState()
-      //}
-      //else {
-        //saveCameraState();
-      //}
-    } else {
-      console.error("cameraRef is not initialized");
-    }
+    // if (cameraRef.value) {
+    //   loadCameraState();
+      
+    // } else {
+    //   console.error("cameraRef is not initialized");
+    // }
   }
 };
 
@@ -593,7 +560,18 @@ onMounted(() => {
     };
     localStorage.setItem("rootGroupState", JSON.stringify(sceneState));
   }
+   
 });
+
+const { onLoop, resume } = useRenderLoop()
+
+onLoop(({ delta, elapsed, clock }) => {
+  if (cameraControls) {
+    console.log("cameraControls");
+    cameraControls.update();
+    saveCameraState();
+  }
+})
 
 watch(
  () => groupRef.value,
@@ -606,13 +584,38 @@ watch(
 );
 
 watch(
- () => orbitControlsRef.value,
+ () => canvasRef.value,
  (newValue, oldValue) => {
     if (newValue) {
-      //loadRootGroupState();
-      //console.log(cameraRef.value);
-      //controlsState.value.camera = cameraRef.value;
-      //console.log(controlsState.value);
+      if (canvasRef.value.context.renderer.value) {
+          CameraControls.install({ THREE });
+          const camera = canvasRef.value.context.camera.value;
+          const loadCameraState = () => {
+ console.log("loadCameraState");
+ if (localStorage.getItem("camera.position.x") !== null) {
+    camera.position.x = parseFloat(localStorage.getItem("camera.position.x"))
+    camera.position.y = parseFloat(localStorage.getItem("camera.position.y"))
+    camera.position.z = parseFloat(localStorage.getItem("camera.position.z"))
+
+    camera.rotation.x = parseFloat(localStorage.getItem("camera.rotation.x"))
+    camera.rotation.y = parseFloat(localStorage.getItem("camera.rotation.y"))
+    camera.rotation.z = parseFloat(localStorage.getItem("camera.rotation.z"))
+
+    camera.zoom = parseFloat(localStorage.getItem("camera.zoom"))
+
+    //camera.updateProjectionMatrix();
+ }
+};
+
+          loadCameraState();
+
+          // Initialize CameraControls
+          cameraControls = new CameraControls(camera, canvasRef.value.context.renderer.value.domElement);
+
+          // Optionally, configure CameraControls as needed
+          cameraControls.enableDamping = true; // for smooth movement
+          cameraControls.dampingFactor = 0.05; // adjust as needed
+      }
     }
  },
  { immediate: true }
