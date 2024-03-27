@@ -8,7 +8,7 @@ import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, Texture
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
-import CameraControls from 'camera-controls';
+
 const gl = reactive({
   clearColor: "#b9b9b4",
   shadows: true,
@@ -21,6 +21,7 @@ const gl = reactive({
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`;
 const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const orbitControlsRef: ShallowRef<TresInstance | null> = shallowRef(null);
+
 const cameraRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const groupRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const choosenMeshRef: ShallowRef<TresInstance | null> = shallowRef(null);
@@ -631,7 +632,13 @@ onUnmounted(() => {
     <TresPerspectiveCamera
       ref="cameraRef"
     />
-    <TransformControls v-log v-if="choosenMeshRef" :object="choosenMeshRef" v-bind="transformState" />
+    <TransformControls v-log 
+    v-if="choosenMeshRef" 
+    :object="choosenMeshRef" 
+    v-bind="transformState" 
+    @mouse-down="() => { cameraControls.enabled = false; }"
+    @mouse-up="() => { cameraControls.enabled = true; }"
+    />
      <TresAmbientLight :intensity="0.5" />
    <TresDirectionalLight
       :position="[0, 2, 4]"
