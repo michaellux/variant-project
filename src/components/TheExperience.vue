@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { TresCanvas, useTexture } from "@tresjs/core";
-import { watch, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
+import { watch, watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
 import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION } from "three";
-import { OrbitControls, TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
+import { CameraControls, TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
 import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader, ObjectLoader } from "three";
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
-//import TexturedBall from './TexturedBall.vue';
-//import TexturedCube from './TexturedCube.vue';
-import Primitive from './Primitive.vue';
 const gl = reactive({
   clearColor: "#b9b9b4",
   shadows: true,
@@ -18,9 +15,15 @@ const gl = reactive({
   outputColorSpace: SRGBColorSpace,
   toneMapping: NoToneMapping,
 });
+
+const controlsState = reactive({
+
+});
+
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`;
-const cameraRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null);
+const orbitControlsRef: ShallowRef<TresInstance | null> = shallowRef(null);
+const cameraRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const groupRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const choosenMeshRef: ShallowRef<TresInstance | null> = shallowRef(null);
 let context = null;
@@ -43,6 +46,7 @@ const controlValues = {
 }
 
 const handleAddMesh = async (meshValue: string) => {
+  loadCameraState();
   if (meshValue !== notChoosetext) {
     const modelFile = sources.find(
       (source) => source.type === "model" && source.name === meshValue
@@ -107,7 +111,7 @@ const handleAddMesh = async (meshValue: string) => {
   } else {
     alert("Не выбрана геометрия!");
   }
-  saveSceneState();
+  saveRootGroupState();
 };
 
 const handleApplyTexture = async (textureSubtypeName: string) => {
@@ -333,7 +337,7 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
       }
     });
   }
-  saveSceneState();
+  saveRootGroupState();
 };
 
 const handleDeleteMesh = () => {
@@ -368,7 +372,7 @@ const handleDeleteMesh = () => {
     choosenMeshRef.value = null;
     rootMeshGroup.value = null;
   }
-  saveSceneState();
+  saveRootGroupState();
 };
 
 const createSceneState = () => {
@@ -379,27 +383,99 @@ const createSceneState = () => {
   return JSON.stringify(sceneState);
 }
 
-const saveSceneState = () => {
-  const sceneState = createSceneState();
-  localStorage.setItem('sceneState', sceneState);
-  console.log("Сохранили изменение");
+const saveRootGroupState = () => {
+  const savedState = JSON.parse(localStorage.getItem("rootGroupState"));
+  savedState.rootGroup = groupRef.value.children;
+  localStorage.setItem("rootGroupState", JSON.stringify(savedState));
 }
 
-const loadSceneState = () => {
-  const savedState = JSON.parse(localStorage.getItem('sceneState'));
-  if (savedState) {
-    if (canvasRef.value) {
+const saveCameraState = () => {
+  console.log(saveCameraState);
+//   const cameraState = {
+//     position: cameraRef.value.position.toArray(),
+//     quaternion: cameraRef.value.quaternion.toArray(),
+//  };
+//  localStorage.setItem("cameraState", JSON.stringify(cameraState));
+localStorage.setItem("camera.position.x", cameraRef.value.position.x.toString())
+localStorage.setItem("camera.position.y", cameraRef.value.position.y.toString())
+localStorage.setItem("camera.position.z", cameraRef.value.position.z.toString())
+localStorage.setItem("camera.rotation.x", cameraRef.value.rotation.x.toString())
+localStorage.setItem("camera.rotation.y", cameraRef.value.rotation.y.toString())
+localStorage.setItem("camera.rotation.z", cameraRef.value.rotation.z.toString())
+localStorage.setItem("camera.zoom", cameraRef.value.zoom.toString())
+
+//localStorage.setItem("controls.target.x", orbitControlsRef.value.target.x.toString())
+//localStorage.setItem("controls.target.y", orbitControlsRef.value.target.y.toString())
+//localStorage.setItem("controls.target.z", orbitControlsRef.value.target.z.toString())
+ //saveOrbitControlsState();
+};
+
+const loadCameraState = () => {
+ console.log("loadCameraState");
+ //const savedState = JSON.parse(localStorage.getItem("cameraState"));
+ if (localStorage.getItem("camera.position.x") !== null) {
+    cameraRef.value.position.x = parseFloat(localStorage.getItem("camera.position.x"))
+    cameraRef.value.position.y = parseFloat(localStorage.getItem("camera.position.y"))
+    cameraRef.value.position.z = parseFloat(localStorage.getItem("camera.position.z"))
+
+    cameraRef.value.rotation.x = parseFloat(localStorage.getItem("camera.rotation.x"))
+    cameraRef.value.rotation.y = parseFloat(localStorage.getItem("camera.rotation.y"))
+    cameraRef.value.rotation.z = parseFloat(localStorage.getItem("camera.rotation.z"))
+
+    cameraRef.value.zoom = parseFloat(localStorage.getItem("camera.zoom"))
+
+    cameraRef.value.updateProjectionMatrix();
+
+    //orbitControlsRef.target.x = parseFloat(localStorage.getItem("controls.target.x"))
+    //orbitControlsRef.target.y = parseFloat(localStorage.getItem("controls.target.y"))
+    //orbitControlsRef.target.z = parseFloat(localStorage.getItem("controls.target.z"))
+
+
+    //loadOrbitControlsState();
+ }
+};
+
+const saveOrbitControlsState = () => {
+ console.log(controlsState);
+ localStorage.setItem('orbitControlsState', JSON.stringify());
+};
+
+const loadOrbitControlsState = () => {
+  const stateJSON = localStorage.getItem('orbitControlsState');
+ if (stateJSON) {
+    orbitControlsRef.value = JSON.parse(stateJSON);
+    orbitControlsRef.value.update(); // Обновите контроллер, чтобы применить изменения
+ }
+};
+
+
+
+const loadRootGroupState = () => {
+  console.log("loadGroupState");
+  const rootGroupState = JSON.parse(localStorage.getItem("rootGroupState"));
+  if (rootGroupState) {
+    if (groupRef.value) {
       const loader = new ObjectLoader();
-      canvasRef.value.context.scene.value.children = [];
-      savedState.objects.forEach(object => {
-        canvasRef.value.context.scene.value.children = [...canvasRef.value.context.scene.value.children, loader.parse(object)];
+      groupRef.value.children = [];
+      rootGroupState.rootGroup.forEach(item => {
+        groupRef.value.children = [...groupRef.value.children, loader.parse(item)];
       });
     } else {
       console.error("groupRef is not initialized");
     }
+    if (cameraRef.value) {
+      //const cameraState = localStorage.getItem("cameraState");
+      //if (cameraState !== null) {
+      loadCameraState()
+      //}
+      //else {
+        //saveCameraState();
+      //}
+    } else {
+      console.error("cameraRef is not initialized");
+    }
   }
-}
-
+};
 
 const raycaster = new Raycaster();
 const mouse = new Vector2();
@@ -498,7 +574,7 @@ const handleMouseDown = (event) => {
       }
     }
   }
-  saveSceneState();
+  saveRootGroupState();
 };
 
 onMounted(() => {
@@ -510,14 +586,33 @@ onMounted(() => {
   gui.add(controlValues, "mesh", meshes);
   gui.add(controlValues, "addMesh").name("Add mesh");
   document.addEventListener("mousedown", handleMouseDown, false);
-  document.addEventListener("mouseup", saveSceneState, false);
+  document.addEventListener("mouseup", saveRootGroupState, false);
+  if (localStorage.getItem("rootGroupState") === null) {
+    const sceneState = {
+      rootGroup: [],
+    };
+    localStorage.setItem("rootGroupState", JSON.stringify(sceneState));
+  }
 });
 
 watch(
  () => groupRef.value,
  (newValue, oldValue) => {
-    if (newValue && localStorage.getItem("sceneState") !== null) {
-      loadSceneState();
+    if (newValue && localStorage.getItem("rootGroupState") !== null) {
+      loadRootGroupState();
+    }
+ },
+ { immediate: true }
+);
+
+watch(
+ () => orbitControlsRef.value,
+ (newValue, oldValue) => {
+    if (newValue) {
+      //loadRootGroupState();
+      //console.log(cameraRef.value);
+      //controlsState.value.camera = cameraRef.value;
+      //console.log(controlsState.value);
     }
  },
  { immediate: true }
@@ -525,7 +620,7 @@ watch(
 
 onUnmounted(() => {
   document.removeEventListener("mousedown", handleMouseDown, false);
-  document.removeEventListener("mouseup", saveSceneState, false);
+  document.removeEventListener("mouseup", saveRootGroupState, false);
 });
 </script>
 
@@ -534,13 +629,8 @@ onUnmounted(() => {
     <Stats style="left: 1.5rem; top: 1.5rem" />
     <TresPerspectiveCamera
       ref="cameraRef"
-      :position="[1, 1, 1]"
-      :fov="75"
-      :near="0.1"
-      :far="1000"
-      look-at="[0, 0, 0]"
     />
-    <OrbitControls make-default/>
+    <!-- <CameraControls v-bind="controlsState" ref="orbitControlsRef" @change="saveCameraState"/> -->
     <TransformControls v-log v-if="choosenMeshRef" :object="choosenMeshRef" v-bind="transformState" />
      <TresAmbientLight :intensity="0.5" />
    <TresDirectionalLight
@@ -556,9 +646,6 @@ onUnmounted(() => {
     <TresAxesHelper :args="[100]" />
     <Suspense>
     <TresGroup ref="groupRef" v-log>
-       <!-- <Suspense>
-          <Primitive />
-       </Suspense> -->
     </TresGroup>
     </Suspense>
   </TresCanvas>
