@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TresCanvas, useTexture, useRenderLoop } from "@tresjs/core";
+import { TresCanvas, useTexture, useRenderLoop, useSeek } from "@tresjs/core";
 import { watch, watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
 import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION } from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -21,7 +21,7 @@ const gl = reactive({
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`;
 const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const orbitControlsRef: ShallowRef<TresInstance | null> = shallowRef(null);
-
+const transformControlsRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const cameraRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const groupRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const choosenMeshRef: ShallowRef<TresInstance | null> = shallowRef(null);
@@ -30,7 +30,7 @@ let gui = null;
 let positionFolder = null;
 let textureFolder = null;
 const notChoosetext = "Не выбрано";
-
+const { seek, seekByName } = useSeek()
 const transformState = shallowReactive({
   showX: true,
   showY: true,
@@ -104,7 +104,10 @@ const handleAddMesh = async (meshValue: string) => {
         ...groupRef.value.children,
         downloadModel.scene,
       ];
-      
+      const addedMesh = seek(groupRef.value, "uuid", downloadModel.scene.children[0].uuid);
+      console.log("attached in add");
+      choosenMeshRef.value = addedMesh;
+      saveAttachedMeshState(addedMesh?.uuid);
     } else {
       console.error("groupRef is not initialized");
     }
@@ -375,14 +378,6 @@ const handleDeleteMesh = () => {
   saveRootGroupState();
 };
 
-const createSceneState = () => {
-  console.log(context.scene.value.children);
-  const sceneState = {
-    objects: context.scene.value.children
-  };
-  return JSON.stringify(sceneState);
-}
-
 const saveRootGroupState = () => {
   const savedState = JSON.parse(localStorage.getItem("rootGroupState"));
   savedState.rootGroup = groupRef.value.children;
@@ -403,21 +398,6 @@ const saveCameraState = () => {
   localStorage.setItem("controls.target.z", cameraControls.target.z.toString())
 };
 
-const saveOrbitControlsState = () => {
- console.log(controlsState);
- localStorage.setItem('orbitControlsState', JSON.stringify());
-};
-
-const loadOrbitControlsState = () => {
-  const stateJSON = localStorage.getItem('orbitControlsState');
- if (stateJSON) {
-    orbitControlsRef.value = JSON.parse(stateJSON);
-    orbitControlsRef.value.update(); // Обновите контроллер, чтобы применить изменения
- }
-};
-
-
-
 const loadRootGroupState = () => {
   console.log("loadGroupState");
   const rootGroupState = JSON.parse(localStorage.getItem("rootGroupState"));
@@ -431,14 +411,21 @@ const loadRootGroupState = () => {
     } else {
       console.error("groupRef is not initialized");
     }
-    // if (cameraRef.value) {
-    //   loadCameraState();
-      
-    // } else {
-    //   console.error("cameraRef is not initialized");
-    // }
   }
 };
+
+const saveAttachedMeshState = (uuid) => {
+  localStorage.setItem('attachedMeshState', uuid);
+}
+
+const loadAttachedMeshState = () => {
+  console.log("loadAttached");
+  const loadedMeshState = localStorage.getItem('attachedMeshState');
+  if (loadedMeshState) {
+    const targetMesh = seek(groupRef.value, "uuid", loadedMeshState);
+    choosenMeshRef.value = targetMesh;
+  }
+}
 
 const raycaster = new Raycaster();
 const mouse = new Vector2();
@@ -482,6 +469,7 @@ const handleMouseDown = (event) => {
         let choosenMesh = rootGroupOfMesh.children[0];
         console.log("choosenMesh", choosenMesh);
         choosenMeshRef.value = choosenMesh;
+        saveAttachedMeshState(choosenMesh.uuid);
         if (positionFolder === null) {
             positionFolder = gui.addFolder('Position');
             positionFolder.add(choosenMeshRef.value.position, 'x').min(-10).max(10).step(0.01).listen();
@@ -555,14 +543,14 @@ onMounted(() => {
       rootGroup: [],
     };
     localStorage.setItem("rootGroupState", JSON.stringify(sceneState));
-  }   
+  }
 });
 
 const { onLoop, resume } = useRenderLoop()
 
 onLoop(({ delta, elapsed, clock }) => {
   if (cameraControls) {
-    console.log("cameraControls");
+    //console.log("cameraControls");
     cameraControls.update();
     saveCameraState();
   }
@@ -573,6 +561,7 @@ watch(
  (newValue, oldValue) => {
     if (newValue && localStorage.getItem("rootGroupState") !== null) {
       loadRootGroupState();
+      loadAttachedMeshState();
     }
  },
  { immediate: true }
@@ -615,6 +604,7 @@ watch(
           cameraControls.enableZoom = true;
           cameraControls.zoomSpeed = 1.0;
       }
+      
     }
  },
  { immediate: true }
@@ -632,7 +622,8 @@ onUnmounted(() => {
     <TresPerspectiveCamera
       ref="cameraRef"
     />
-    <TransformControls v-log 
+    <TransformControls v-log
+    ref="transformControlsRef"
     v-if="choosenMeshRef" 
     :object="choosenMeshRef" 
     v-bind="transformState" 
