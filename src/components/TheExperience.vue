@@ -114,6 +114,8 @@ const handleAddMesh = async (geometryName: string) => {
         ...groupRef.value.children,
         downloadModel.scene,
       ];
+      console.log(groupRef.value.children);
+      saveRootGroupState();
       const addedMesh = seek(groupRef.value, "uuid", downloadModel.scene.children[0].uuid);
       console.log("attached in add");
       choosenMeshRef.value = addedMesh;
@@ -125,7 +127,6 @@ const handleAddMesh = async (geometryName: string) => {
   } else {
     alert("Не выбрана геометрия!");
   }
-  saveRootGroupState();
 };
 
 const handleApplyTexture = async (textureSubtypeName: string) => {
@@ -256,7 +257,7 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
     }
     const ktx2Loader = new KTX2Loader()
     .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
-    .detectSupport(context.renderer.value); 
+    .detectSupport(canvasRef.value.context.renderer.value); 
     const loadKTXTexture = async (texturePath, textureSubtype) => {
       try {
         const texture = await ktx2Loader.loadAsync(texturePath);
@@ -402,7 +403,10 @@ const saveRootGroupState = () => {
     const geometryName = meshNameArr[1].split("_")[0];
     const textureInfo = JSON.parse(meshNameArr[2]);
      const rootMeshInGroup = rootGroup.children[0];
+     //const rootGroupClone = { ...rootGroup };
+     //delete rootGroupClone.children;
      const meshInfo = {
+      //rootGroup: rootGroupClone,
       position: {
         x: rootMeshInGroup.position.x,
         y: rootMeshInGroup.position.y,
@@ -440,20 +444,28 @@ const saveCameraState = () => {
   localStorage.setItem("controls.target.z", cameraControls.target.z.toString())
 };
 
-const loadRootGroupState = () => {
- /*console.log("loadGroupState");
- const rootGroupState = ls.get('rootGroupState', { decrypt: true });
+const loadRootGroupState = async () => {
+ console.log("loadGroupState");
+ const rootGroupState = ls.get('rootGroupState', { decrypt: false });
  if (rootGroupState) {
     if (groupRef.value) {
-      const loader = new ObjectLoader();
-      groupRef.value.children = [];
-      rootGroupState.rootGroup.forEach(item => {
-        groupRef.value.children = [...groupRef.value.children, loader.parse(item)];
+     console.log(rootGroupState);
+      const promises = rootGroupState.map(item => {
+        // Предполагается, что handleAddMesh и другие асинхронные функции возвращают промис
+        return handleAddMesh(item.geometryName).then(() => {
+          // Дополнительные асинхронные операции, если необходимо
+          Object.values(item.textureInfo).forEach((textureSubtypeName) => {
+            return handleApplyTexture(textureSubtypeName);
+          });
+        });
       });
+
+      // Ожидание завершения всех промисов
+      await Promise.all(promises);
     } else {
       console.error("groupRef is not initialized");
     }
- }*/
+ }
 };
 
 const saveAttachedMeshState = (uuid) => {
@@ -574,7 +586,6 @@ const handleMouseDown = (event) => {
       }
     }
   }
-  saveRootGroupState();
 };
 
 onMounted(() => {
