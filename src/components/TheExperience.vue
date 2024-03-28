@@ -57,7 +57,9 @@ const controlValues = {
 
 let cameraControls = null;
 
-const handleAddMesh = async (geometryName: string) => {
+let loadingStateNow = true;
+
+const handleAddMesh = async (geometryName: string, textureInfo) => {
   if (geometryName !== notChoosetext) {
     const modelFile = sources.find(
       (source) => source.type === "model" && source.name === geometryName
@@ -69,14 +71,16 @@ const handleAddMesh = async (geometryName: string) => {
     const downloadModel = await useGLTF(modelFile, {
       binary: true,
     });
-    
-    const textureInfo = {
+    const startTextureInfo = {
       albedo: notChoosetext,
       roughness: notChoosetext,
       metalness: notChoosetext,
       normal: notChoosetext,
       sheen: notChoosetext
     };
+    if (textureInfo == null) {
+      textureInfo = startTextureInfo;
+    }
     let meshName = downloadModel.scene.children[0].name;
     meshName = `${meshName}|${geometryName}_inScene|${JSON.stringify(textureInfo)}`;
     downloadModel.scene.name = `${meshName}|_inScene`;
@@ -395,39 +399,73 @@ const handleDeleteMesh = () => {
   saveRootGroupState();
 };
 
-const saveRootGroupState = () => {
-  console.log("SaveRootGroupState");
-  let meshes = [];
-  groupRef.value.children.forEach(rootGroup => {
-    const meshNameArr = rootGroup.name.split("|");
-    const geometryName = meshNameArr[1].split("_")[0];
-    const textureInfo = JSON.parse(meshNameArr[2]);
-     const rootMeshInGroup = rootGroup.children[0];
-     //const rootGroupClone = { ...rootGroup };
-     //delete rootGroupClone.children;
-     const meshInfo = {
-      //rootGroup: rootGroupClone,
-      position: {
-        x: rootMeshInGroup.position.x,
-        y: rootMeshInGroup.position.y,
-        z: rootMeshInGroup.position.z,
-      },
-      rotation: {
-        x: rootMeshInGroup.rotation.x,
-        y: rootMeshInGroup.rotation.y,
-        z: rootMeshInGroup.rotation.z,
-      },
-      scale: {
-        x: rootMeshInGroup.scale.x,
-        y: rootMeshInGroup.scale.y,
-        z: rootMeshInGroup.scale.z,
-      },
-      geometryName,
-      textureInfo,
+const loadRootGroupState = async () => {
+ console.log("loadGroupState");
+ const rootGroupState = ls.get('rootGroupState', { decrypt: false });
+ if (rootGroupState) {
+    if (groupRef.value) {
+     console.log(rootGroupState);
+      // Используем reduce для создания цепочки промисов
+      await rootGroupState.reduce(async (previousPromise, item) => {
+        // Ожидаем завершения предыдущей операции
+        await previousPromise;
+        // Выполняем обработку текущего элемента
+        return handleAddMesh(item.geometryName, item.textureInfo).then(() => {
+          // Создаем массив промисов для каждой текстуры
+          const texturePromises = Object.values(item.textureInfo).map(textureSubtypeName => {
+            return handleApplyTexture(textureSubtypeName);
+          });
+          // Ожидаем завершения всех промисов текстур
+          return Promise.all(texturePromises);
+        });
+      }, Promise.resolve());
+
+      loadingStateNow = false;
+      console.log("можно сохранять");
+    } else {
+      console.error("groupRef is not initialized");
     }
-    meshes = [...meshes, meshInfo];
-  });
- ls.set('rootGroupState', meshes, { encrypt: false });
+ } else {
+ loadingStateNow = false;
+ console.log("можно сохранять");
+ }
+};
+
+const saveRootGroupState = () => {
+  if (!loadingStateNow) {
+      console.log("SaveRootGroupState");
+      let meshes = [];
+      groupRef.value.children.forEach(rootGroup => {
+        const meshNameArr = rootGroup.name.split("|");
+        const geometryName = meshNameArr[1].split("_")[0];
+        const textureInfo = JSON.parse(meshNameArr[2]);
+        const rootMeshInGroup = rootGroup.children[0];
+        //const rootGroupClone = { ...rootGroup };
+        //delete rootGroupClone.children;
+        const meshInfo = {
+          //rootGroup: rootGroupClone,
+          position: {
+            x: rootMeshInGroup.position.x,
+            y: rootMeshInGroup.position.y,
+            z: rootMeshInGroup.position.z,
+          },
+          rotation: {
+            x: rootMeshInGroup.rotation.x,
+            y: rootMeshInGroup.rotation.y,
+            z: rootMeshInGroup.rotation.z,
+          },
+          scale: {
+            x: rootMeshInGroup.scale.x,
+            y: rootMeshInGroup.scale.y,
+            z: rootMeshInGroup.scale.z,
+          },
+          geometryName,
+          textureInfo,
+        }
+        meshes = [...meshes, meshInfo];
+      });
+    ls.set('rootGroupState', meshes, { encrypt: false });
+  }
 };
 
 const saveCameraState = () => {
@@ -442,30 +480,6 @@ const saveCameraState = () => {
   localStorage.setItem("controls.target.x", cameraControls.target.x.toString())
   localStorage.setItem("controls.target.y", cameraControls.target.y.toString())
   localStorage.setItem("controls.target.z", cameraControls.target.z.toString())
-};
-
-const loadRootGroupState = async () => {
- console.log("loadGroupState");
- const rootGroupState = ls.get('rootGroupState', { decrypt: false });
- if (rootGroupState) {
-    if (groupRef.value) {
-     console.log(rootGroupState);
-      const promises = rootGroupState.map(item => {
-        // Предполагается, что handleAddMesh и другие асинхронные функции возвращают промис
-        return handleAddMesh(item.geometryName).then(() => {
-          // Дополнительные асинхронные операции, если необходимо
-          Object.values(item.textureInfo).forEach((textureSubtypeName) => {
-            return handleApplyTexture(textureSubtypeName);
-          });
-        });
-      });
-
-      // Ожидание завершения всех промисов
-      await Promise.all(promises);
-    } else {
-      console.error("groupRef is not initialized");
-    }
- }
 };
 
 const saveAttachedMeshState = (uuid) => {
@@ -611,7 +625,7 @@ onLoop(({ delta, elapsed, clock }) => {
 watch(
  () => groupRef.value,
  (newValue, oldValue) => {
-    if (newValue && localStorage.getItem("rootGroupState") !== null) {
+    if (newValue) {
       loadRootGroupState();
       loadAttachedMeshState();
     }
