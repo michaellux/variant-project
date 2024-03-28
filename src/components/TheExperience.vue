@@ -9,6 +9,16 @@ import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 
+import ls from 'localstorage-slim';
+import AES from 'crypto-js/aes';
+import encUTF8 from 'crypto-js/enc-utf8';
+
+ls.config.encrypt = true;
+ls.config.secret = 'your-secret-key'; // Замените на свой секретный ключ
+
+ls.config.encrypter = (data, secret) => AES.encrypt(JSON.stringify(data), secret).toString();
+ls.config.decrypter = (data, secret) => JSON.parse(AES.decrypt(data, secret).toString(encUTF8));
+
 const gl = reactive({
   clearColor: "#b9b9b4",
   shadows: true,
@@ -29,6 +39,7 @@ let context = null;
 let gui = null;
 let positionFolder = null;
 let textureFolder = null;
+let deleteMeshController = null;
 const notChoosetext = "Не выбрано";
 const { seek, seekByName } = useSeek()
 const transformState = shallowReactive({
@@ -46,10 +57,10 @@ const controlValues = {
 
 let cameraControls = null;
 
-const handleAddMesh = async (meshValue: string) => {
-  if (meshValue !== notChoosetext) {
+const handleAddMesh = async (geometryName: string) => {
+  if (geometryName !== notChoosetext) {
     const modelFile = sources.find(
-      (source) => source.type === "model" && source.name === meshValue
+      (source) => source.type === "model" && source.name === geometryName
     )?.path;
     if (!modelFile) {
       console.error("Model file not found");
@@ -58,8 +69,7 @@ const handleAddMesh = async (meshValue: string) => {
     const downloadModel = await useGLTF(modelFile, {
       binary: true,
     });
-    let meshName = downloadModel.scene.children[0].name;
-
+    
     const textureInfo = {
       albedo: notChoosetext,
       roughness: notChoosetext,
@@ -67,9 +77,9 @@ const handleAddMesh = async (meshValue: string) => {
       normal: notChoosetext,
       sheen: notChoosetext
     };
-
-    downloadModel.scene.children[0].name = `${meshName}_inScene|${JSON.stringify(textureInfo)}`;
-    downloadModel.scene.name = `${meshName}_inScene`;
+    let meshName = downloadModel.scene.children[0].name;
+    meshName = `${meshName}|${geometryName}_inScene|${JSON.stringify(textureInfo)}`;
+    downloadModel.scene.name = `${meshName}|_inScene`;
     console.log(downloadModel.scene.children[0].geometry);
 
     const remapUVs = (geo) => {
@@ -108,6 +118,7 @@ const handleAddMesh = async (meshValue: string) => {
       console.log("attached in add");
       choosenMeshRef.value = addedMesh;
       saveAttachedMeshState(addedMesh?.uuid);
+      attachControlPanels();
     } else {
       console.error("groupRef is not initialized");
     }
@@ -183,8 +194,8 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
       return;
     }
     let downloadTexture = null;
-    const meshNameArr = choosenMeshRef.value.name.split("|");
-    const textureInfo = JSON.parse(meshNameArr[1]);
+    const meshNameArr = choosenMeshRef.value.parent.name.split("|");
+    const textureInfo = JSON.parse(meshNameArr[2]);
 
     let albedoTexture = { 
       path: getTexture(textureInfo.albedo) !== null ? getTexture(textureInfo.albedo)?.path : null,
@@ -374,15 +385,46 @@ const handleDeleteMesh = () => {
     });
     choosenMeshRef.value = null;
     rootMeshGroup.value = null;
+
+    positionFolder.hide();
+    textureFolder.hide();
+    deleteMeshController.destroy();
+    deleteMeshController = null;
   }
   saveRootGroupState();
 };
 
 const saveRootGroupState = () => {
-  const savedState = JSON.parse(localStorage.getItem("rootGroupState"));
-  savedState.rootGroup = groupRef.value.children;
-  localStorage.setItem("rootGroupState", JSON.stringify(savedState));
-}
+  console.log("SaveRootGroupState");
+  let meshes = [];
+  groupRef.value.children.forEach(rootGroup => {
+    const meshNameArr = rootGroup.name.split("|");
+    const geometryName = meshNameArr[1].split("_")[0];
+    const textureInfo = JSON.parse(meshNameArr[2]);
+     const rootMeshInGroup = rootGroup.children[0];
+     const meshInfo = {
+      position: {
+        x: rootMeshInGroup.position.x,
+        y: rootMeshInGroup.position.y,
+        z: rootMeshInGroup.position.z,
+      },
+      rotation: {
+        x: rootMeshInGroup.rotation.x,
+        y: rootMeshInGroup.rotation.y,
+        z: rootMeshInGroup.rotation.z,
+      },
+      scale: {
+        x: rootMeshInGroup.scale.x,
+        y: rootMeshInGroup.scale.y,
+        z: rootMeshInGroup.scale.z,
+      },
+      geometryName,
+      textureInfo,
+    }
+    meshes = [...meshes, meshInfo];
+  });
+ ls.set('rootGroupState', meshes, { encrypt: false });
+};
 
 const saveCameraState = () => {
   localStorage.setItem("camera.position.x", cameraRef.value.position.x.toString())
@@ -399,9 +441,9 @@ const saveCameraState = () => {
 };
 
 const loadRootGroupState = () => {
-  console.log("loadGroupState");
-  const rootGroupState = JSON.parse(localStorage.getItem("rootGroupState"));
-  if (rootGroupState) {
+ /*console.log("loadGroupState");
+ const rootGroupState = ls.get('rootGroupState', { decrypt: true });
+ if (rootGroupState) {
     if (groupRef.value) {
       const loader = new ObjectLoader();
       groupRef.value.children = [];
@@ -411,7 +453,7 @@ const loadRootGroupState = () => {
     } else {
       console.error("groupRef is not initialized");
     }
-  }
+ }*/
 };
 
 const saveAttachedMeshState = (uuid) => {
@@ -429,6 +471,64 @@ const loadAttachedMeshState = () => {
 
 const raycaster = new Raycaster();
 const mouse = new Vector2();
+
+const attachControlPanels = () => {
+  if (positionFolder === null) {
+      positionFolder = gui.addFolder('Position');
+      positionFolder.add(choosenMeshRef.value.position, 'x').min(-10).max(10).step(0.01).listen();
+      positionFolder.add(choosenMeshRef.value.position, 'y').min(-10).max(10).step(0.01).listen();
+      positionFolder.add(choosenMeshRef.value.position, 'z').min(-10).max(10).step(0.01).listen();
+  }
+  else {
+    positionFolder.show();
+  }
+  if (textureFolder === null) {
+    textureFolder = gui.addFolder('Textures');
+    let textures = sources
+    .filter((source) => source.type === "texture");
+    let textureSubTypeNames = new Set(textures.map((texture) => texture.subtype));
+    let controls = {};
+    textureSubTypeNames.forEach((subtype) => {
+      controls[subtype] = notChoosetext;
+    });
+    textureSubTypeNames.forEach((subtype) => {
+      textureFolder?.add(controls, subtype, textures
+        .filter((source) => source.subtype === subtype)
+        .map((source) => source.name)
+        )
+      .onChange(event => {
+        const meshNameArr = choosenMeshRef.value.parent.name.split("|");
+        const textureInfo = JSON.parse(meshNameArr[2]);
+        console.log(subtype);
+        textureInfo[subtype] = event;
+        choosenMeshRef.value.parent.name = [
+          meshNameArr[0],
+          meshNameArr[1],
+          JSON.stringify(textureInfo),
+          meshNameArr[3]].join("|");
+        handleApplyTexture(event)
+      })
+      .listen()
+    })
+  }
+  else {
+      positionFolder.controllers.forEach(controller => {
+        controller.object = choosenMeshRef.value.position;
+      });
+      textureFolder.show();
+      textureFolder.controllers.forEach(controller => {
+        const meshNameArr = choosenMeshRef.value.parent.name.split("|");
+        const textureInfo = JSON.parse(meshNameArr[2]);
+        controller.object = textureInfo;
+      })
+  }
+  if (deleteMeshController == null) {
+    controlValues.removeMesh = function() {
+      handleDeleteMesh();
+    }
+    deleteMeshController = gui.add(controlValues, "removeMesh").name("Delete");
+  }
+}
 
 const handleMouseDown = (event) => {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -470,58 +570,7 @@ const handleMouseDown = (event) => {
         console.log("choosenMesh", choosenMesh);
         choosenMeshRef.value = choosenMesh;
         saveAttachedMeshState(choosenMesh.uuid);
-        if (positionFolder === null) {
-            positionFolder = gui.addFolder('Position');
-            positionFolder.add(choosenMeshRef.value.position, 'x').min(-10).max(10).step(0.01).listen();
-            positionFolder.add(choosenMeshRef.value.position, 'y').min(-10).max(10).step(0.01).listen();
-            positionFolder.add(choosenMeshRef.value.position, 'z').min(-10).max(10).step(0.01).listen();
-        }
-        if (textureFolder === null) {
-          textureFolder = gui.addFolder('Textures');
-          let textures = sources
-          .filter((source) => source.type === "texture");
-          let textureSubTypeNames = new Set(textures.map((texture) => texture.subtype));
-          let controls = {};
-          textureSubTypeNames.forEach((subtype) => {
-            //const meshNameArr = choosenMeshRef.value.name.split("|");
-            //const textureInfo = JSON.parse(meshNameArr[1]);
-            //console.log(subtype);
-            controls[subtype] = notChoosetext;
-          });
-          textureSubTypeNames.forEach((subtype) => {
-           textureFolder?.add(controls, subtype, textures
-              .filter((source) => source.subtype === subtype)
-              .map((source) => source.name)
-              )
-            .onChange(event => {
-              const meshNameArr = choosenMeshRef.value.name.split("|");
-              const textureInfo = JSON.parse(meshNameArr[1]);
-              console.log(subtype);
-              textureInfo[subtype] = event;
-              choosenMeshRef.value.name = [meshNameArr[0], JSON.stringify(textureInfo)].join("|");
-              handleApplyTexture(event)
-            })
-            .listen()
-          })
-        }
-        else {
-            console.log(positionFolder.controllers);
-            console.log(choosenMeshRef.value);
-            positionFolder.controllers.forEach(controller => {
-              controller.object = choosenMeshRef.value.position;
-            });
-            textureFolder.controllers.forEach(controller => {
-              const meshNameArr = choosenMeshRef.value.name.split("|");
-              const textureInfo = JSON.parse(meshNameArr[1]);
-              controller.object = textureInfo;
-            })
-        }
-        if (controlValues.removeMesh == null) {
-          controlValues.removeMesh = function() {
-            handleDeleteMesh();
-          }
-          gui.add(controlValues, "removeMesh").name("Delete");
-        }
+        attachControlPanels();
       }
     }
   }
@@ -530,27 +579,19 @@ const handleMouseDown = (event) => {
 
 onMounted(() => {
   gui = new GUI();
-  const meshes = sources
+  const geometries = sources
       .filter((source) => source.type === "model")
       .map((source) => source.name);
 
-  gui.add(controlValues, "mesh", meshes);
+  gui.add(controlValues, "mesh", geometries);
   gui.add(controlValues, "addMesh").name("Add mesh");
   document.addEventListener("mousedown", handleMouseDown, false);
   document.addEventListener("mouseup", saveRootGroupState, false);
-  if (localStorage.getItem("rootGroupState") === null) {
-    const sceneState = {
-      rootGroup: [],
-    };
-    localStorage.setItem("rootGroupState", JSON.stringify(sceneState));
-  }
 });
 
-const { onLoop, resume } = useRenderLoop()
-
+const { onLoop } = useRenderLoop()
 onLoop(({ delta, elapsed, clock }) => {
   if (cameraControls) {
-    //console.log("cameraControls");
     cameraControls.update();
     saveCameraState();
   }
@@ -590,7 +631,6 @@ watch(
 
           loadCameraState();
 
-          // Initialize CameraControls
           cameraControls = new OrbitControls(camera, canvasRef.value.context.renderer.value.domElement);
 
           if (localStorage.getItem("controls.target.x") !== null) {
