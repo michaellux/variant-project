@@ -59,7 +59,7 @@ let cameraControls = null;
 
 let loadingStateNow = true;
 
-const handleAddMesh = async (geometryName: string, textureInfo) => {
+const handleAddMesh = async (geometryName: string, textureInfo, position, rotation, scale) => {
   if (geometryName !== notChoosetext) {
     const modelFile = sources.find(
       (source) => source.type === "model" && source.name === geometryName
@@ -123,6 +123,17 @@ const handleAddMesh = async (geometryName: string, textureInfo) => {
       const addedMesh = seek(groupRef.value, "uuid", downloadModel.scene.children[0].uuid);
       console.log("attached in add");
       choosenMeshRef.value = addedMesh;
+
+    if (position != null) {
+      addedMesh?.position.set(position.x, position.y, position.z);
+    }
+    if (rotation != null) {
+       addedMesh?.rotation.set(rotation.x, rotation.y, rotation.z);
+    }
+    if (scale != null) {
+      addedMesh?.scale.set(scale.x, scale.y, scale.z);
+    }
+
       saveAttachedMeshState(addedMesh?.uuid);
       attachControlPanels();
     } else {
@@ -401,7 +412,7 @@ const handleDeleteMesh = () => {
 
 const loadRootGroupState = async () => {
  console.log("loadGroupState");
- const rootGroupState = ls.get('rootGroupState', { decrypt: false });
+ const rootGroupState = ls.get('rootGroupState', { decrypt: true });
  if (rootGroupState) {
     if (groupRef.value) {
      console.log(rootGroupState);
@@ -410,7 +421,7 @@ const loadRootGroupState = async () => {
         // Ожидаем завершения предыдущей операции
         await previousPromise;
         // Выполняем обработку текущего элемента
-        return handleAddMesh(item.geometryName, item.textureInfo).then(() => {
+        return handleAddMesh(item.geometryName, item.textureInfo, item.position, item.rotation, item.scale).then(() => {
           // Создаем массив промисов для каждой текстуры
           const texturePromises = Object.values(item.textureInfo).map(textureSubtypeName => {
             return handleApplyTexture(textureSubtypeName);
@@ -419,7 +430,6 @@ const loadRootGroupState = async () => {
           return Promise.all(texturePromises);
         });
       }, Promise.resolve());
-
       loadingStateNow = false;
       console.log("можно сохранять");
     } else {
@@ -440,8 +450,6 @@ const saveRootGroupState = () => {
         const geometryName = meshNameArr[1].split("_")[0];
         const textureInfo = JSON.parse(meshNameArr[2]);
         const rootMeshInGroup = rootGroup.children[0];
-        //const rootGroupClone = { ...rootGroup };
-        //delete rootGroupClone.children;
         const meshInfo = {
           //rootGroup: rootGroupClone,
           position: {
@@ -464,7 +472,7 @@ const saveRootGroupState = () => {
         }
         meshes = [...meshes, meshInfo];
       });
-    ls.set('rootGroupState', meshes, { encrypt: false });
+    ls.set('rootGroupState', meshes, { encrypt: true });
   }
 };
 
