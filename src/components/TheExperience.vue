@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { TresCanvas, useTexture, useRenderLoop, useSeek } from "@tresjs/core";
 import { watch, watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
-import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION, Color } from "three";
+import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION, Color, MeshStandardMaterial, MeshToonMaterial, CubeTextureLoader } from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
-import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader, ObjectLoader } from "three";
+import { TransformControls, Stats, vLog, useGLTF, vLightHelper } from "@tresjs/cientos";
+import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader } from "three";
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
@@ -30,7 +30,7 @@ const gl = reactive({
 
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`;
 const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null);
-const orbitControlsRef: ShallowRef<TresInstance | null> = shallowRef(null);
+const directionalLightRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const transformControlsRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const cameraRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const groupRef: ShallowRef<TresInstance | null> = shallowRef(null);
@@ -41,6 +41,7 @@ let positionFolder = null;
 let textureFolder = null;
 let deleteMeshController = null;
 let materialFolder = null;
+let lightFolder = null;
 const notChoosetext = "Не выбрано";
 const { seek, seekByName } = useSeek()
 const transformState = shallowReactive({
@@ -593,6 +594,33 @@ const attachControlPanels = () => {
       lightIntensity: currentMaterial.lightIntensity,
       exposure: currentMaterial.exposure
     };
+
+/*const materialValues = {
+ color: `#ffffff`, // Белый цвет для зеркала
+ emissive: `#000000`, // Черный цвет для отсутствия излучения
+ emissiveIntensity: 0.0, // Отсутствие излучения
+ roughness: 0.0, // Гладкая поверхность для зеркала
+ metalness: 1.0, // Высокая металличность для зеркала
+ ior: 1.5, // Стандартный индекс преломления для зеркала
+ reflectivity: 1.0, // Максимальная отражательность для зеркала
+ iridescence: 0.0, // Отсутствие иризации
+ iridescenceIOR: 1.0, // Стандартный индекс преломления для иризации
+ sheen: 0.0, // Отсутствие блеска
+ sheenRoughness: 0.0, // Гладкая поверхность блеска
+ sheenColor: `#ffffff`, // Белый цвет для блеска
+ clearcoat: 0.0, // Отсутствие защитного покрытия
+ clearcoatRoughness: 0.0, // Гладкая поверхность защитного покрытия
+ specularIntensity: 1.0, // Максимальная интенсивность блеска
+ specularColor: `#ffffff`, // Белый цвет для блеска
+ transmission: 0.0, // Отсутствие прозрачности
+ opacity: 1.0, // Полная непрозрачность
+ thickness: 0.0, // Отсутствие толщины
+ envMapIntensity: 1.0, // Стандартная интенсивность отражения от окружающей среды
+ lightIntensity: 1.0, // Стандартная интенсивность света
+ exposure: 1.0 // Стандартное экспозиционное значение
+};*/
+
+
     
     materialFolder = gui.addFolder('Material');
     materialFolder.addColor(materialValues, 'color')
@@ -681,7 +709,7 @@ materialFolder.add( materialValues, 'thickness', 0, 5, 0.01 )
 .onChange( function () {
   choosenMeshRef.value.thickness = materialValues.thickness;
 } );
-  materialFolder.add( materialValues, 'envMapIntensity', 0, 1, 0.01 )
+  materialFolder.add( materialValues, 'envMapIntensity', 0, 50, 0.01 )
     .name( 'envMap intensity' )
     .onChange( function () {
       choosenMeshRef.value.material.envMapIntensity = materialValues.envMapIntensity;
@@ -691,8 +719,38 @@ materialFolder.add( materialValues, 'thickness', 0, 5, 0.01 )
   // 	.onChange( function () {
   // 		renderer.toneMappingExposure = materialValues.exposure;
   // });
+  }
+
+  if (lightFolder == null) {
+     lightFolder = gui.addFolder('Light');
+    lightFolder.add(directionalLightRef.value, 'intensity').min(0).max(10).step(0.001).name("intensity").listen();
+    lightFolder.add(directionalLightRef.value.position, 'x').min(-10).max(10).step(0.01).listen();
+    lightFolder.add(directionalLightRef.value.position, 'y').min(-10).max(10).step(0.01).listen();
+    lightFolder.add(directionalLightRef.value.position, 'z').min(-10).max(10).step(0.01).listen();
+  }
+
+  canvasRef.value.context.renderer.value.physicallyCorrectLights = true;
+
+  const cubeTextureLoader = new CubeTextureLoader();
+  const environmentMap = cubeTextureLoader.load([
+    'textures/environment/0/px.png',
+    'textures/environment/0/nx.png',
+    'textures/environment/0/py.png',
+    'textures/environment/0/ny.png',
+    'textures/environment/0/pz.png',
+    'textures/environment/0/nz.png'
+  ]);
+  const scene = canvasRef.value.context.scene.value;
+  //scene.background = environmentMap;
+  scene.environment = environmentMap;
+  
+  choosenMeshRef.value.material.envMap = environmentMap; 
+  //choosenMeshRef.value.material.envMapIntensity = 2.5;
+  // scene.traverse((child) => {
+
+  // });
 }
-}
+
 
 const handleMouseDown = (event) => {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -756,7 +814,7 @@ const { onLoop } = useRenderLoop()
 onLoop(({ delta, elapsed, clock }) => {
   if (cameraControls) {
     cameraControls.update();
-    saveCameraState();
+    //saveCameraState();
   }
 })
 
@@ -820,7 +878,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <TresCanvas ref="canvasRef" v-bind="gl" preset="realistic">
+  <TresCanvas ref="canvasRef" v-bind="gl">
     <Stats style="left: 1.5rem; top: 1.5rem" />
     <TresPerspectiveCamera
       ref="cameraRef"
@@ -833,16 +891,20 @@ onUnmounted(() => {
     @mouse-down="() => { cameraControls.enabled = false; }"
     @mouse-up="() => { cameraControls.enabled = true; }"
     />
-     <TresAmbientLight :intensity="0.5" />
    <TresDirectionalLight
-      :position="[0, 2, 4]"
+      ref="directionalLightRef"
+      v-light-helper
+      color="#ffffff"
+      :position="[0, 3, 1]"
       :intensity="1"
       cast-shadow
     />
-    <TresHemisphereLight
+    <!-- <TresHemisphereLight
+      v-light-helper
       color="0xffffff"
-      :intensity="0.6"
-    />
+      :intensity="0.1"
+      
+    /> -->
     <TresGridHelper :args="[500, 50]" />
     <TresAxesHelper :args="[100]" />
     <Suspense>
