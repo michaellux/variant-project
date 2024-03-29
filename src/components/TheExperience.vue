@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { TresCanvas, useTexture, useRenderLoop, useSeek } from "@tresjs/core";
 import { watch, watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
-import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION } from "three";
+import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION, Color } from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls, Stats, vLog, useGLTF } from "@tresjs/cientos";
 import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader, ObjectLoader } from "three";
@@ -40,6 +40,7 @@ let gui = null;
 let positionFolder = null;
 let textureFolder = null;
 let deleteMeshController = null;
+let materialFolder = null;
 const notChoosetext = "Не выбрано";
 const { seek, seekByName } = useSeek()
 const transformState = shallowReactive({
@@ -562,6 +563,135 @@ const attachControlPanels = () => {
     }
     deleteMeshController = gui.add(controlValues, "removeMesh").name("Delete");
   }
+
+  if (materialFolder == null) {
+    const currentMaterial = choosenMeshRef.value.material;
+    const materialColor = currentMaterial.color.getHexString();
+    const materialEmissive = currentMaterial.emissive.getHexString();
+    const materialSheenColor = currentMaterial.sheenColor.getHexString();
+    const materialValues = {
+      color: `#${materialColor}`,
+      emissive: `#${materialEmissive}`,
+      emissiveIntensity: currentMaterial.emissiveIntensity,
+      roughness: currentMaterial.roughness,
+      metalness: currentMaterial.metalness,
+      ior: currentMaterial.ior,
+      reflectivity: currentMaterial.reflectivity,
+      iridescence: currentMaterial.iridescence,
+      iridescenceIOR: currentMaterial.iridescenceIOR,
+      sheen: currentMaterial.sheen,
+      sheenRoughness: currentMaterial.sheenRoughness,
+      sheenColor: `#${materialSheenColor}`,
+      clearcoat: currentMaterial.clearcoat,
+      clearcoatRoughness: currentMaterial.clearcoatRoughness,
+      specularIntensity: currentMaterial.specularIntensity,
+      specularColor: currentMaterial.specularColor,
+      transmission: currentMaterial.transmission,
+      opacity: currentMaterial.opacity,
+      thickness: currentMaterial.thickness,
+      envMapIntensity: currentMaterial.envMapIntensity,
+      lightIntensity: currentMaterial.lightIntensity,
+      exposure: currentMaterial.exposure
+    };
+    
+    materialFolder = gui.addFolder('Material');
+    materialFolder.addColor(materialValues, 'color')
+    .onChange( function () {
+        // Преобразование строки цвета в числовое значение
+        const colorValue = parseInt(materialValues.color.replace('#', '0x'), 16);
+        // Применение нового цвета к материалу
+        choosenMeshRef.value.material.color.set(colorValue);
+    });
+    materialFolder.addColor(materialValues, 'emissive')
+    .onChange( function () {
+        // Преобразование строки цвета в числовое значение
+        const colorValue = parseInt(materialValues.emissive.replace('#', '0x'), 16);
+        // Применение нового цвета к материалу
+        choosenMeshRef.value.material.emissive.set(colorValue);
+    });
+    materialFolder.add( materialValues, 'emissiveIntensity', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.emissiveIntensity = materialValues.emissiveIntensity;
+    } );
+    materialFolder.add( materialValues, 'roughness', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.roughness = materialValues.roughness;
+    } );
+    materialFolder.add( materialValues, 'metalness', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.metalness = materialValues.metalness;
+    } );
+    materialFolder.add( materialValues, 'ior', 1, 2, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.ior = materialValues.ior;
+    } );
+    materialFolder.add( materialValues, 'reflectivity', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.reflectivity = materialValues.reflectivity;
+    } );
+    materialFolder.add( materialValues, 'iridescence', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.iridescence = materialValues.iridescence;
+    } );
+    materialFolder.add( materialValues, 'iridescenceIOR', 1, 2.333, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.iridescenceIOR = materialValues.iridescenceIOR;
+    } );
+    materialFolder.add( materialValues, 'sheen', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.sheen = materialValues.sheen;
+    } );
+    materialFolder.add( materialValues, 'sheenRoughness', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.sheenRoughness = materialValues.sheenRoughness;
+    } );
+    materialFolder.addColor(materialValues, 'sheenColor')
+    .onChange( function () {
+        // Преобразование строки цвета в числовое значение
+        const colorValue = parseInt(materialValues.sheenColor.replace('#', '0x'), 16);
+        // Применение нового цвета к материалу
+        choosenMeshRef.value.material.sheenColor.set(colorValue);
+    });
+    materialFolder.add( materialValues, 'clearcoat', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.clearcoat = materialValues.clearcoat;
+    } );
+    materialFolder.add( materialValues, 'clearcoatRoughness', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.clearcoatRoughness = materialValues.clearcoatRoughness;
+    } );
+    materialFolder.add( materialValues, 'specularIntensity', 0, 1, 0.01 )
+    .onChange( function () {
+      choosenMeshRef.value.material.specularIntensity = materialValues.specularIntensity;
+    } );
+
+  materialFolder.addColor( materialValues, 'specularColor' )
+    .onChange( function () {
+      choosenMeshRef.value.material.specularColor.set( materialValues.specularColor );
+    } );
+    materialFolder.add( materialValues, 'transmission', 0, 1, 0.01 )
+        .onChange( function () {
+          choosenMeshRef.value.material.transmission = materialValues.transmission;
+        } );
+    materialFolder.add( materialValues, 'opacity', 0, 1, 0.01 )
+      .onChange( function () {
+        choosenMeshRef.value.material.opacity = materialValues.opacity;
+      } );
+materialFolder.add( materialValues, 'thickness', 0, 5, 0.01 )
+.onChange( function () {
+  choosenMeshRef.value.thickness = materialValues.thickness;
+} );
+  materialFolder.add( materialValues, 'envMapIntensity', 0, 1, 0.01 )
+    .name( 'envMap intensity' )
+    .onChange( function () {
+      choosenMeshRef.value.material.envMapIntensity = materialValues.envMapIntensity;
+    } );
+
+  // materialFolder.add( materialValues, 'exposure', 0, 1, 0.01 )
+  // 	.onChange( function () {
+  // 		renderer.toneMappingExposure = materialValues.exposure;
+  // });
+}
 }
 
 const handleMouseDown = (event) => {
