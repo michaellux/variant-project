@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { TresCanvas, useTexture, useRenderLoop, useSeek } from "@tresjs/core";
 import { watch, watchEffect, reactive, shallowReactive, shallowRef, onMounted, onUnmounted } from "vue";
-import { Mesh, BasicShadowMap, SRGBColorSpace, NoToneMapping, REVISION, Color, MeshStandardMaterial, MeshToonMaterial, CubeTextureLoader } from "three";
+import { Mesh, BasicShadowMap, SRGBColorSpace, REVISION, CubeTextureLoader,
+   NoToneMapping,
+   LinearToneMapping,
+   ReinhardToneMapping,
+   CineonToneMapping,
+   ACESFilmicToneMapping } from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls, Stats, vLog, useGLTF, vLightHelper } from "@tresjs/cientos";
 import { Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader } from "three";
 import sources from "../sources";
 import GUI, { Controller } from 'lil-gui';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
-
+import TexturedCube from "./TexturedCube.vue";
 import ls from 'localstorage-slim';
 import AES from 'crypto-js/aes';
 import encUTF8 from 'crypto-js/enc-utf8';
@@ -42,6 +47,9 @@ let textureFolder = null;
 let deleteMeshController = null;
 let materialFolder = null;
 let lightFolder = null;
+
+let renderer = null;
+
 const notChoosetext = "Не выбрано";
 const { seek, seekByName } = useSeek()
 const transformState = shallowReactive({
@@ -722,29 +730,32 @@ materialFolder.add( materialValues, 'thickness', 0, 5, 0.01 )
   }
 
   if (lightFolder == null) {
-     lightFolder = gui.addFolder('Light');
+    lightFolder = gui.addFolder('Light');
     lightFolder.add(directionalLightRef.value, 'intensity').min(0).max(10).step(0.001).name("intensity").listen();
     lightFolder.add(directionalLightRef.value.position, 'x').min(-10).max(10).step(0.01).listen();
     lightFolder.add(directionalLightRef.value.position, 'y').min(-10).max(10).step(0.01).listen();
     lightFolder.add(directionalLightRef.value.position, 'z').min(-10).max(10).step(0.01).listen();
+    
+    lightFolder.addColor(directionalLightRef.value, 'color').name('color').listen();
   }
 
-  canvasRef.value.context.renderer.value.physicallyCorrectLights = true;
+  
 
   const cubeTextureLoader = new CubeTextureLoader();
   const environmentMap = cubeTextureLoader.load([
-    'textures/environment/0/px.png',
-    'textures/environment/0/nx.png',
-    'textures/environment/0/py.png',
-    'textures/environment/0/ny.png',
-    'textures/environment/0/pz.png',
-    'textures/environment/0/nz.png'
+    'textures/environment/1/px.jpg',
+    'textures/environment/1/nx.jpg',
+    'textures/environment/1/py.jpg',
+    'textures/environment/1/ny.jpg',
+    'textures/environment/1/pz.jpg',
+    'textures/environment/1/nz.jpg'
   ]);
   const scene = canvasRef.value.context.scene.value;
+
   //scene.background = environmentMap;
-  scene.environment = environmentMap;
+  //scene.environment = environmentMap;
   
-  choosenMeshRef.value.material.envMap = environmentMap; 
+  //choosenMeshRef.value.material.envMap = environmentMap; 
   //choosenMeshRef.value.material.envMapIntensity = 2.5;
   // scene.traverse((child) => {
 
@@ -806,6 +817,22 @@ onMounted(() => {
 
   gui.add(controlValues, "mesh", geometries);
   gui.add(controlValues, "addMesh").name("Add mesh");
+
+  gui.add(renderer, 'toneMapping', {
+    No: NoToneMapping,
+    Linear: LinearToneMapping,
+    Reinhard: ReinhardToneMapping,
+    Cineon: CineonToneMapping,
+    ACESFilmic: ACESFilmicToneMapping
+  }).name('Tone Mapping');
+
+
+
+  // Добавление слайдера для настройки экспозиции toneMapping
+  gui.add(renderer, 'toneMappingExposure').min(0).max(10).step(0.001).name('Exposure');
+  gui.add(renderer, 'gammaFactor').min(0.1).max(5).step(0.1).name('Gamma Factor');
+  gui.add(renderer, 'gammaOutput').name('Gamma Output');
+
   document.addEventListener("mousedown", handleMouseDown, false);
   document.addEventListener("mouseup", saveRootGroupState, false);
 });
@@ -829,31 +856,41 @@ watch(
  { immediate: true }
 );
 
+const configColors = () => {
+  // renderer.physicallyCorrectLights = true;
+  // renderer.outputColorSpace = SRGBColorSpace;
+  // renderer.toneMapping = ACESFilmicToneMapping; // Выберите один из доступных методов tone mapping
+  // renderer.toneMappingExposure = 1.0; // Установите экспозицию для tone mapping
+   renderer.gammaFactor = 2.2; // Установите фактор гаммы
+  renderer.gammaOutput = true; // Включите вывод гаммы
+
+  
+}
+
 watch(
  () => canvasRef.value,
  (newValue, oldValue) => {
     if (newValue) {
-      if (canvasRef.value.context.renderer.value) {
+      renderer = canvasRef.value.context.renderer.value;
+      if (renderer) {
+        configColors();
           const camera = canvasRef.value.context.camera.value;
           const loadCameraState = () => {
- console.log("loadCameraState");
- if (localStorage.getItem("camera.position.x") !== null) {
-    camera.position.x = parseFloat(localStorage.getItem("camera.position.x"))
-    camera.position.y = parseFloat(localStorage.getItem("camera.position.y"))
-    camera.position.z = parseFloat(localStorage.getItem("camera.position.z"))
+          console.log("loadCameraState");
+            if (localStorage.getItem("camera.position.x") !== null) {
+                camera.position.x = parseFloat(localStorage.getItem("camera.position.x"))
+                camera.position.y = parseFloat(localStorage.getItem("camera.position.y"))
+                camera.position.z = parseFloat(localStorage.getItem("camera.position.z"))
 
-    camera.rotation.x = parseFloat(localStorage.getItem("camera.rotation.x"))
-    camera.rotation.y = parseFloat(localStorage.getItem("camera.rotation.y"))
-    camera.rotation.z = parseFloat(localStorage.getItem("camera.rotation.z"))
+                camera.rotation.x = parseFloat(localStorage.getItem("camera.rotation.x"))
+                camera.rotation.y = parseFloat(localStorage.getItem("camera.rotation.y"))
+                camera.rotation.z = parseFloat(localStorage.getItem("camera.rotation.z"))
 
-    camera.zoom = parseFloat(localStorage.getItem("camera.zoom"))
- }
-};
-
+                camera.zoom = parseFloat(localStorage.getItem("camera.zoom"))
+            }
+          };
           loadCameraState();
-
-          cameraControls = new OrbitControls(camera, canvasRef.value.context.renderer.value.domElement);
-
+          cameraControls = new OrbitControls(camera, renderer.domElement);
           if (localStorage.getItem("controls.target.x") !== null) {
             cameraControls.target.x = parseFloat(localStorage.getItem("controls.target.x"))
             cameraControls.target.y = parseFloat(localStorage.getItem("controls.target.y"))
@@ -899,12 +936,6 @@ onUnmounted(() => {
       :intensity="1"
       cast-shadow
     />
-    <!-- <TresHemisphereLight
-      v-light-helper
-      color="0xffffff"
-      :intensity="0.1"
-      
-    /> -->
     <TresGridHelper :args="[500, 50]" />
     <TresAxesHelper :args="[100]" />
     <Suspense>
