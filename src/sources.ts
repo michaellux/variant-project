@@ -1,3 +1,10 @@
+interface Asset {
+ name: string;
+ type: string;
+ path: string;
+ subtype?: string;
+}
+
 export default [
   {
      name: 'chair',
@@ -121,4 +128,4 @@ export default [
     subtype:'sheen',
     path: 'textures/sheen/sheen-velours.png'
   }
-]
+] as Asset[];
