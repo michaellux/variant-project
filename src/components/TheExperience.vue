@@ -1,10 +1,13 @@
 <script setup lang='ts'>
-import { TresCanvas, TresCamera, useTexture, useRenderLoop, useSeek } from '@tresjs/core'
-import { watch, reactive, shallowReactive, shallowRef, onMounted, onUnmounted, ShallowRef } from 'vue'
-import type { Event, Object3D, Camera, Mesh } from 'three'
+import type { TresCamera, TresObject3D } from '@tresjs/core'
+import { TresCanvas, useTexture, useRenderLoop, useSeek } from '@tresjs/core'
+import type { ShallowRef } from 'vue'
+import { watch, reactive, shallowRef, shallowReactive, onMounted, onUnmounted } from 'vue'
+import type { Camera, Renderer } from 'three'
 import {
+  Mesh,
   Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader,
-  BasicShadowMap, SRGBColorSpace, REVISION, CubeTextureLoader,
+  BasicShadowMap, SRGBColorSpace, REVISION,
   NoToneMapping,
   LinearToneMapping,
   ReinhardToneMapping,
@@ -17,11 +20,11 @@ import type Asset from '../sources'
 import sources from '../sources'
 import GUI from 'lil-gui'
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
+import { truthy, falsy } from '../typeHelpers.ts'
 import ls from 'localstorage-slim'
 import AES from 'crypto-js/aes'
 import encUTF8 from 'crypto-js/enc-utf8'
-import { truthy, falsy } from '../typeHelpers.ts'
-import { Renderer } from 'three'
+
 ls.config.encrypt = true
 ls.config.secret = 'your-secret-key'
 ls.config.encrypter = (data, secret) => AES.encrypt(JSON.stringify(data), secret).toString()
@@ -42,7 +45,7 @@ const directionalLightRef: ShallowRef<TresInstance | null> = shallowRef(null)
 const directionalLightRef2: ShallowRef<TresInstance | null> = shallowRef(null)
 const transformControlsRef: ShallowRef<TresInstance | null> = shallowRef(null)
 const cameraRef: ShallowRef<TresCamera | null> = shallowRef(null)
-const groupRef: ShallowRef<TresInstance | null> = shallowRef(null)
+const groupRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 const choosenMeshRef: ShallowRef<TresInstance | null> = shallowRef(null)
 
 let gui = null
@@ -105,7 +108,7 @@ const handleAddMesh = async (geometryName: string, textureInfo, position, rotati
       ]
       console.log(groupRef.value.children)
       saveRootGroupState()
-      const addedMesh: Object3D<Event> | null = seek(groupRef.value, 'uuid', downloadModel.scene.children[0].uuid)
+      const addedMesh = seek(groupRef.value, 'uuid', downloadModel.scene.children[0].uuid)
       console.log('attached in add')
       choosenMeshRef.value = addedMesh
 
@@ -196,7 +199,7 @@ const handleApplyTexture = async (textureSubtypeName: string): Promise<void> => 
     }
     let downloadTexture = null
     const meshNameArr = choosenMeshRef.value.parent.name.split('|')
-    const textureInfo: object = JSON.parse(meshNameArr[2])
+    const textureInfo: object = JSON.parse(meshNameArr[2] as string)
 
     const albedoTexture = {
       path: getTexture(textureInfo.albedo) !== null ? getTexture(textureInfo.albedo)?.path : null,
@@ -252,7 +255,7 @@ const handleApplyTexture = async (textureSubtypeName: string): Promise<void> => 
     }
     if (sheenTexture?.path !== null) {
       const sheenLoader = new TextureLoader()
-      const texture = await sheenLoader.loadAsync(sheenTexture?.path)
+      const texture = await sheenLoader.loadAsync(sheenTexture?.path as string)
       applyTexture(texture, sheenTexture?.subtype)
     }
     const ktx2Loader = new KTX2Loader()
@@ -383,11 +386,17 @@ const loadRootGroupState = async (): void => {
     if (truthy(groupRef.value)) {
       await rootGroupState.reduce(async (previousPromise, item) => {
         await previousPromise
-        return handleAddMesh(item.geometryName, item.textureInfo, item.position, item.rotation, item.scale).then(() => {
-          const texturePromises: Array<Promise<void>> = Object.values(item.textureInfo).map(textureSubtypeName => {
-            return handleApplyTexture(textureSubtypeName)
-      })
-          return Promise.all(texturePromises)
+        await handleAddMesh(
+          item.geometryName as string,
+          item.textureInfo as object,
+          item.position as object,
+          item.rotation as object,
+          item.scale as object
+        ).then(async () => {
+          const texturePromises: Array<Promise<void>> = Object.values(item.textureInfo as object).map(async textureSubtypeName => {
+            await handleApplyTexture(textureSubtypeName as string)
+          })
+          return await Promise.all(texturePromises)
         })
       }, Promise.resolve())
       loadingStateNow = false
@@ -435,7 +444,7 @@ const saveRootGroupState = (): void => {
   }
 }
 
-const saveCameraState = () => {
+const saveCameraState = (): void => {
   localStorage.setItem('camera.position.x', cameraRef.value.position.x.toString())
   localStorage.setItem('camera.position.y', cameraRef.value.position.y.toString())
   localStorage.setItem('camera.position.z', cameraRef.value.position.z.toString())
@@ -449,14 +458,14 @@ const saveCameraState = () => {
   localStorage.setItem('controls.target.z', cameraControls.target.z.toString())
 }
 
-const saveAttachedMeshState = (uuid) => {
-  localStorage.setItem('attachedMeshState', uuid)
+const saveAttachedMeshState = (uuid): void => {
+  localStorage.setItem('attachedMeshState', uuid as string)
 }
 
-const loadAttachedMeshState = () => {
+const loadAttachedMeshState = (): void => {
   console.log('loadAttached')
   const loadedMeshState = localStorage.getItem('attachedMeshState')
-  if (loadedMeshState) {
+  if (truthy(loadedMeshState)) {
     const targetMesh = seek(groupRef.value, 'uuid', loadedMeshState)
     choosenMeshRef.value = targetMesh
   }
@@ -465,7 +474,7 @@ const loadAttachedMeshState = () => {
 const raycaster = new Raycaster()
 const mouse = new Vector2()
 
-const attachControlPanels = () => {
+const attachControlPanels = (): void => {
   if (positionFolder === null) {
     positionFolder = gui.addFolder('Position')
     positionFolder.add(choosenMeshRef.value.position, 'x').min(-10).max(10).step(0.01).listen()
@@ -476,7 +485,7 @@ const attachControlPanels = () => {
   }
   if (textureFolder === null) {
     textureFolder = gui.addFolder('Textures')
-    let textures = sources.filter((source) => source.type === 'texture')
+    const textures = sources.filter((source) => source.type === 'texture')
     const textureSubTypeNames = new Set(textures.map((texture) => texture.subtype))
     const controls = {}
     textureSubTypeNames.forEach((subtype) => {
@@ -489,7 +498,7 @@ const attachControlPanels = () => {
       )
         .onChange(event => {
           const meshNameArr = choosenMeshRef.value.parent.name.split('|')
-          const textureInfo = JSON.parse(meshNameArr[2])
+          const textureInfo = JSON.parse(meshNameArr[2] as string)
           console.log(subtype)
           textureInfo[subtype] = event
           choosenMeshRef.value.parent.name = [
@@ -497,7 +506,7 @@ const attachControlPanels = () => {
             meshNameArr[1],
             JSON.stringify(textureInfo),
             meshNameArr[3]].join('|')
-          handleApplyTexture(event)
+          void handleApplyTexture(event as string)
         })
         .listen()
     })
@@ -508,7 +517,7 @@ const attachControlPanels = () => {
     textureFolder.show()
     textureFolder.controllers.forEach(controller => {
       const meshNameArr = choosenMeshRef.value.parent.name.split('|')
-      const textureInfo = JSON.parse(meshNameArr[2])
+      const textureInfo = JSON.parse(meshNameArr[2] as string)
       controller.object = textureInfo
     })
   }
@@ -651,15 +660,15 @@ const attachControlPanels = () => {
     lightFolder.addColor(directionalLightRef2.value, 'color').name('color').listen()
   }
 
-  const cubeTextureLoader = new CubeTextureLoader()
-  const environmentMap = cubeTextureLoader.load([
-    'textures/environment/1/px.jpg',
-    'textures/environment/1/nx.jpg',
-    'textures/environment/1/py.jpg',
-    'textures/environment/1/ny.jpg',
-    'textures/environment/1/pz.jpg',
-    'textures/environment/1/nz.jpg'
-  ])
+  // const cubeTextureLoader = new CubeTextureLoader()
+  // const environmentMap = cubeTextureLoader.load([
+  //   'textures/environment/1/px.jpg',
+  //   'textures/environment/1/nx.jpg',
+  //   'textures/environment/1/py.jpg',
+  //   'textures/environment/1/ny.jpg',
+  //   'textures/environment/1/pz.jpg',
+  //   'textures/environment/1/nz.jpg'
+  // ])
 }
 
 const handleMouseDown = (event): void => {
@@ -668,7 +677,7 @@ const handleMouseDown = (event): void => {
   raycaster.setFromCamera(mouse, cameraRef.value)
 
   const intersects = raycaster.intersectObjects(
-    canvasRef.value.context.scene.value.children,
+    canvasRef.value.context.scene.value.children as [],
     true
   )
 
@@ -720,8 +729,6 @@ onMounted(() => {
   }).name('Tone Mapping')
 
   gui.add(renderer, 'toneMappingExposure').min(0).max(10).step(0.001).name('Exposure')
-  gui.add(renderer, 'gammaFactor').min(0.1).max(5).step(0.1).name('Gamma Factor')
-  gui.add(renderer, 'gammaOutput').name('Gamma Output')
 
   document.addEventListener('mousedown', handleMouseDown, false)
   document.addEventListener('mouseup', saveRootGroupState, false)
@@ -792,7 +799,7 @@ onUnmounted(() => {
 
 <template>
   <TresCanvas ref='canvasRef' v-bind='gl' shadows preset='realistic'>
-    <Stats style='left: 1.5rem top: 1.5rem' />
+    <Stats style='left: 1.5rem; top: 1.5rem' />
     <TresPerspectiveCamera
       ref='cameraRef'
     />

@@ -1,30 +1,30 @@
 interface Asset {
- name: string;
- type: string;
- path: string;
- subtype?: string;
+  name: string
+  type: string
+  path: string
+  subtype?: string
 }
 
 export default [
   {
-     name: 'chair',
-     type: 'model',
-     path: 'models/chair.glb',
+    name: 'chair',
+    type: 'model',
+    path: 'models/chair.glb'
   },
   {
     name: 'cube',
     type: 'model',
-    path: 'models/cube.glb',
+    path: 'models/cube.glb'
   },
   {
     name: 'helmet',
     type: 'model',
-    path:'models/helmet.glb'
+    path: 'models/helmet.glb'
   },
   {
     name: 'suzanne',
-    type: 'model', 
-    path:'models/suzanne.glb'
+    type: 'model',
+    path: 'models/suzanne.glb'
   },
   {
     name: 'albedoLeatherTexture',
@@ -61,7 +61,7 @@ export default [
     type: 'texture',
     subtype: 'roughness',
     path: 'textures/roughness/roughness-metal.png'
-  },  
+  },
   {
     name: 'roughnessVeloursTexture',
     type: 'texture',
@@ -77,25 +77,25 @@ export default [
   {
     name: 'metalnessLeatherTexture',
     type: 'texture',
-    subtype:'metalness',
+    subtype: 'metalness',
     path: 'textures/metalness/metalness-leather.ktx2'
   },
   {
     name: 'metalnessMetalTexture',
     type: 'texture',
-    subtype:'metalness',
+    subtype: 'metalness',
     path: 'textures/metalness/metalness-metal.png'
   },
   {
     name: 'metalnessVeloursTexture',
     type: 'texture',
-    subtype:'metalness',
+    subtype: 'metalness',
     path: 'textures/metalness/metalness-velours.png'
   },
   {
     name: 'metalnessWoodTexture',
     type: 'texture',
-    subtype:'metalness',
+    subtype: 'metalness',
     path: 'textures/metalness/metalness-wood.png'
   },
   {
@@ -125,7 +125,7 @@ export default [
   {
     name: 'sheenLeatherTexture',
     type: 'texture',
-    subtype:'sheen',
+    subtype: 'sheen',
     path: 'textures/sheen/sheen-velours.png'
   }
-] as Asset[];
+] as Asset[]
