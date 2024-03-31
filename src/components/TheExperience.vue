@@ -6,13 +6,14 @@ import { watch, reactive, shallowRef, shallowReactive, onMounted, onUnmounted } 
 import type { Camera, Renderer } from 'three'
 import {
   Mesh,
-  Raycaster, Vector2, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader,
+  Raycaster, Vector2, Vector3, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader,
   BasicShadowMap, SRGBColorSpace, REVISION,
   NoToneMapping,
   LinearToneMapping,
   ReinhardToneMapping,
   CineonToneMapping,
-  ACESFilmicToneMapping
+  ACESFilmicToneMapping,
+  Color
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TransformControls, Stats, vLog, useGLTF, vLightHelper } from '@tresjs/cientos'
@@ -20,7 +21,7 @@ import type Asset from '../sources'
 import sources from '../sources'
 import GUI from 'lil-gui'
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
-import { truthy, falsy } from '../typeHelpers.ts'
+import { truthy, falsy } from '../typeHelpers'
 import ls from 'localstorage-slim'
 import AES from 'crypto-js/aes'
 import encUTF8 from 'crypto-js/enc-utf8'
@@ -41,8 +42,8 @@ const gl = reactive({
 
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`
 const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null)
-const directionalLightRef: ShallowRef<TresInstance | null> = shallowRef(null)
-const directionalLightRef2: ShallowRef<TresInstance | null> = shallowRef(null)
+const directionalLightRef: ShallowRef<TresObject3D | null> = shallowRef(null)
+const directionalLightRef2: ShallowRef<TresObject3D | null> = shallowRef(null)
 const transformControlsRef: ShallowRef<TresInstance | null> = shallowRef(null)
 const cameraRef: ShallowRef<TresCamera | null> = shallowRef(null)
 const groupRef: ShallowRef<TresObject3D | null> = shallowRef(null)
@@ -51,6 +52,7 @@ const choosenMeshRef: ShallowRef<TresInstance | null> = shallowRef(null)
 let gui = null
 let positionFolder = null
 let textureFolder = null
+let presetFolder = null
 let deleteMeshController = null
 let materialFolder = null
 let lightFolder = null
@@ -340,7 +342,7 @@ const handleApplyTexture = async (textureSubtypeName: string): Promise<void> => 
 }
 
 const handleDeleteMesh = (): void => {
-  const removeByKey = (array, key, value): [] => {
+  const removeByKey = (array: [], key, value): [] => {
     const index = array.findIndex(item => item[key] === value)
     if (index !== -1) {
       array.splice(index, 1)
@@ -351,9 +353,7 @@ const handleDeleteMesh = (): void => {
   if (truthy(choosenMeshRef.value)) {
     const rootMeshGroup = choosenMeshRef.value.parent
     const target = rootMeshGroup.uuid
-    console.log(groupRef.value.children)
     removeByKey(groupRef.value.children, 'uuid', target)
-    console.log(groupRef.value.children)
     choosenMeshRef.value.traverse((child) => {
       if (child instanceof Mesh) {
         if (truthy(child.geometry)) {
@@ -528,121 +528,103 @@ const attachControlPanels = (): void => {
     deleteMeshController = gui.add(controlValues, 'removeMesh').name('Delete')
   }
 
-  if (materialFolder == null) {
-    const currentMaterial = choosenMeshRef.value.material
-    const materialColor = currentMaterial.color.getHexString()
-    const materialEmissive = currentMaterial.emissive.getHexString()
-    const materialSheenColor = currentMaterial.sheenColor.getHexString()
-    const materialValues = {
-      color: `#${materialColor}`,
-      emissive: `#${materialEmissive}`,
-      emissiveIntensity: currentMaterial.emissiveIntensity,
-      roughness: currentMaterial.roughness,
-      metalness: currentMaterial.metalness,
-      ior: currentMaterial.ior,
-      reflectivity: currentMaterial.reflectivity,
-      iridescence: currentMaterial.iridescence,
-      iridescenceIOR: currentMaterial.iridescenceIOR,
-      sheen: currentMaterial.sheen,
-      sheenRoughness: currentMaterial.sheenRoughness,
-      sheenColor: `#${materialSheenColor}`,
-      clearcoat: currentMaterial.clearcoat,
-      clearcoatRoughness: currentMaterial.clearcoatRoughness,
-      specularIntensity: currentMaterial.specularIntensity,
-      specularColor: currentMaterial.specularColor,
-      transmission: currentMaterial.transmission,
-      opacity: currentMaterial.opacity,
-      thickness: currentMaterial.thickness,
-      envMapIntensity: currentMaterial.envMapIntensity,
-      lightIntensity: currentMaterial.lightIntensity,
-      exposure: currentMaterial.exposure
+  const currentMaterial = choosenMeshRef.value.material
+  const materialSheenColor = currentMaterial.sheenColor.getHexString()
+  const materialValues = {
+    roughness: currentMaterial.roughness,
+    metalness: currentMaterial.metalness,
+    reflectivity: currentMaterial.reflectivity,
+    sheen: currentMaterial.sheen,
+    sheenRoughness: currentMaterial.sheenRoughness,
+    sheenColor: `#${materialSheenColor}`,
+    clearcoat: currentMaterial.clearcoat,
+    clearcoatRoughness: currentMaterial.clearcoatRoughness,
+    envMapIntensity: currentMaterial.envMapIntensity
+  }
+
+  if (presetFolder == null) {
+    const parameters = {
+      isLeather: false,
+      isMetal: false,
+      isVelours: false,
+      isWood: false
+    }
+    presetFolder = gui.addFolder('Presets material param')
+    presetFolder.add(parameters, 'isLeather').name('Leather').listen().onChange(function () { setChecked('isLeather') })
+    presetFolder.add(parameters, 'isMetal').name('Metal').listen().onChange(function () { setChecked('isMetal') })
+    presetFolder.add(parameters, 'isVelours').name('Velours').listen().onChange(function () { setChecked('isVelours') })
+    presetFolder.add(parameters, 'isWood').name('Wood').listen().onChange(function () { setChecked('isWood') })
+
+    const setLight = (light, intensity, color, position): void => {
+      light.intensity = intensity
+      light.color = color
+      light.position.set(position.x, position.y, position.z)
     }
 
+    const setChecked = (prop: string): void => {
+      for (const param in parameters) {
+        parameters[param] = false
+      }
+      parameters[prop] = true
+      switch (prop) {
+        case 'isLeather':
+          finalTexture.map = downloadedTexture
+          break
+        case 'isMetal':
+          finalTexture.roughnessMap = downloadedTexture
+          break
+        case 'isVelours':
+          finalTexture.metalnessMap = downloadedTexture
+          break
+        case 'isWood':
+          materialValues.roughness = 1
+          choosenMeshRef.value.material.roughness = 1
+          materialValues.metalness = 1
+          choosenMeshRef.value.material.metalness = 1
+          setLight(directionalLightRef.value, 2.367, new Color('#bb966e'), new Vector3(-0.94, 1.1, 1.6))
+          break
+        default:
+          break
+      }
+    }
+  }
+
+  if (materialFolder == null) {
     materialFolder = gui.addFolder('Material')
-    materialFolder.addColor(materialValues, 'color')
-      .onChange(function () {
-        const colorValue = parseInt(materialValues.color.replace('#', '0x'), 16)
-        choosenMeshRef.value.material.color.set(colorValue)
-      })
-    materialFolder.addColor(materialValues, 'emissive')
-      .onChange(function () {
-        const colorValue = parseInt(materialValues.emissive.replace('#', '0x'), 16)
-        choosenMeshRef.value.material.emissive.set(colorValue)
-      })
-    materialFolder.add(materialValues, 'emissiveIntensity', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.emissiveIntensity = materialValues.emissiveIntensity
-      })
     materialFolder.add(materialValues, 'roughness', 0, 1, 0.01)
       .onChange(function () {
         choosenMeshRef.value.material.roughness = materialValues.roughness
-      })
+      }).listen()
     materialFolder.add(materialValues, 'metalness', 0, 1, 0.01)
       .onChange(function () {
         choosenMeshRef.value.material.metalness = materialValues.metalness
-      })
-    materialFolder.add(materialValues, 'ior', 1, 2, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.ior = materialValues.ior
-      })
-    materialFolder.add(materialValues, 'reflectivity', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.reflectivity = materialValues.reflectivity
-      })
-    materialFolder.add(materialValues, 'iridescence', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.iridescence = materialValues.iridescence
-      })
-    materialFolder.add(materialValues, 'iridescenceIOR', 1, 2.333, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.iridescenceIOR = materialValues.iridescenceIOR
-      })
+      }).listen()
     materialFolder.add(materialValues, 'sheen', 0, 1, 0.01)
       .onChange(function () {
         choosenMeshRef.value.material.sheen = materialValues.sheen
-      })
+      }).listen()
     materialFolder.add(materialValues, 'sheenRoughness', 0, 1, 0.01)
       .onChange(function () {
         choosenMeshRef.value.material.sheenRoughness = materialValues.sheenRoughness
-      })
+      }).listen()
     materialFolder.addColor(materialValues, 'sheenColor')
       .onChange(function () {
         const colorValue = parseInt(materialValues.sheenColor.replace('#', '0x'), 16)
         choosenMeshRef.value.material.sheenColor.set(colorValue)
-      })
+      }).listen()
     materialFolder.add(materialValues, 'clearcoat', 0, 1, 0.01)
       .onChange(function () {
         choosenMeshRef.value.material.clearcoat = materialValues.clearcoat
-      })
+      }).listen()
     materialFolder.add(materialValues, 'clearcoatRoughness', 0, 1, 0.01)
       .onChange(function () {
         choosenMeshRef.value.material.clearcoatRoughness = materialValues.clearcoatRoughness
-      })
-    materialFolder.add(materialValues, 'specularIntensity', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.specularIntensity = materialValues.specularIntensity
-      })
-    materialFolder.addColor(materialValues, 'specularColor')
-      .onChange(function () {
-        choosenMeshRef.value.material.specularColor.set(materialValues.specularColor)
-      })
-    materialFolder.add(materialValues, 'transmission', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.transmission = materialValues.transmission
-      })
-    materialFolder.add(materialValues, 'opacity', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.opacity = materialValues.opacity
-      })
-    materialFolder.add(materialValues, 'thickness', 0, 5, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.thickness = materialValues.thickness
-      })
+      }).listen()
     materialFolder.add(materialValues, 'envMapIntensity', 0, 50, 0.01)
       .name('envMap intensity')
       .onChange(function () {
         choosenMeshRef.value.material.envMapIntensity = materialValues.envMapIntensity
-      })
+      }).listen()
   }
 
   if (lightFolder == null) {
@@ -735,7 +717,7 @@ onMounted(() => {
 })
 
 const { onLoop } = useRenderLoop()
-onLoop(({ delta, elapsed, clock }) => {
+onLoop(() => {
   if (truthy(cameraControls)) {
     cameraControls.update()
     saveCameraState()
@@ -744,7 +726,7 @@ onLoop(({ delta, elapsed, clock }) => {
 
 watch(
   () => groupRef.value,
-  (newValue, oldValue) => {
+  (newValue) => {
     if (truthy(newValue)) {
       loadRootGroupState()
       loadAttachedMeshState()
@@ -755,7 +737,7 @@ watch(
 
 watch(
   () => canvasRef.value,
-  (newValue, oldValue) => {
+  (newValue) => {
     if (truthy(newValue)) {
       renderer = canvasRef.value.context.renderer.value
       if (truthy(renderer)) {
