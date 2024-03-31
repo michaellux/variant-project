@@ -36,6 +36,7 @@ const gl = reactive({
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`;
 const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const directionalLightRef: ShallowRef<TresInstance | null> = shallowRef(null);
+const directionalLightRef2: ShallowRef<TresInstance | null> = shallowRef(null);
 const transformControlsRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const cameraRef: ShallowRef<TresInstance | null> = shallowRef(null);
 const groupRef: ShallowRef<TresInstance | null> = shallowRef(null);
@@ -355,25 +356,6 @@ const handleApplyTexture = async (textureSubtypeName: string) => {
           child.material.sheenRoughnessMap.rotation = Math.PI * 0.5
           child.material.sheenRoughnessMap.needsUpdate = true;
         }
-
-        /*child.material.attenuationColor = modelMaterial.attenuationColor;
-        child.material.clearcoatNormalScale = modelMaterial.clearcoatNormalScale;
-      
-        child.material.defines = modelMaterial.defines;
-        child.material.emissive = modelMaterial.emissive;
-        child.material.ior = modelMaterial.ior;
-        child.material.iridescenceThicknessRange = modelMaterial.iridescenceThicknessRange;
-
-        child.material.normalScale = modelMaterial.normalScale;
-        child.material.roughness = modelMaterial.roughness;
-        child.material.sheenColor = modelMaterial.sheenColor;
-        child.material.sheenRoughness = modelMaterial.sheenRoughness;
-        child.material.side = modelMaterial.side;
-        child.material.specularColor = modelMaterial.specularColor;
-        child.material.specularIntensity = modelMaterial.specularIntensity
-
-        child.material.metalness = modelMaterial.metalness; // если добавить будет "сильно" тёмная текстура
-        child.material.color = modelMaterial.color; // если добавить будет "несильно" тёмная текстура*/
       }
     });
   }
@@ -735,8 +717,13 @@ materialFolder.add( materialValues, 'thickness', 0, 5, 0.01 )
     lightFolder.add(directionalLightRef.value.position, 'x').min(-10).max(10).step(0.01).listen();
     lightFolder.add(directionalLightRef.value.position, 'y').min(-10).max(10).step(0.01).listen();
     lightFolder.add(directionalLightRef.value.position, 'z').min(-10).max(10).step(0.01).listen();
-    
     lightFolder.addColor(directionalLightRef.value, 'color').name('color').listen();
+
+    lightFolder.add(directionalLightRef2.value, 'intensity').min(0).max(10).step(0.001).name("intensity").listen();
+    lightFolder.add(directionalLightRef2.value.position, 'x').min(-10).max(10).step(0.01).listen();
+    lightFolder.add(directionalLightRef2.value.position, 'y').min(-10).max(10).step(0.01).listen();
+    lightFolder.add(directionalLightRef2.value.position, 'z').min(-10).max(10).step(0.01).listen();
+    lightFolder.addColor(directionalLightRef2.value, 'color').name('color').listen();
   }
 
   
@@ -915,7 +902,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <TresCanvas ref="canvasRef" v-bind="gl">
+  <TresCanvas ref="canvasRef" v-bind="gl" shadows preset="realistic">
     <Stats style="left: 1.5rem; top: 1.5rem" />
     <TresPerspectiveCamera
       ref="cameraRef"
@@ -930,6 +917,14 @@ onUnmounted(() => {
     />
    <TresDirectionalLight
       ref="directionalLightRef"
+      v-light-helper
+      color="#ffffff"
+      :position="[0, 3, 1]"
+      :intensity="1"
+      cast-shadow
+    />
+    <TresDirectionalLight
+      ref="directionalLightRef2"
       v-light-helper
       color="#ffffff"
       :position="[0, 3, 1]"
