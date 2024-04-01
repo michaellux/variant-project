@@ -534,6 +534,9 @@ const attachControlPanels = (): void => {
   const materialValues = {
     roughness: currentMaterial.roughness,
     metalness: currentMaterial.metalness,
+    ior: currentMaterial.ior,
+    iridescence: currentMaterial.iridescence,
+    iridescenceIOR: currentMaterial.iridescenceIOR,
     reflectivity: currentMaterial.reflectivity,
     sheen: currentMaterial.sheen,
     sheenRoughness: currentMaterial.sheenRoughness,
@@ -582,6 +585,14 @@ const attachControlPanels = (): void => {
           choosenMeshRef.value.material.roughness = 1
           materialValues.metalness = 1
           choosenMeshRef.value.material.metalness = 1
+          materialValues.ior = 1.45
+          choosenMeshRef.value.material.ior = 1.45
+          materialValues.reflectivity = 1
+          choosenMeshRef.value.material.reflectivity = 1
+          materialValues.iridescence = 0.13
+          choosenMeshRef.value.material.iridescence = 0.13
+          materialValues.iridescenceIOR = 1.3
+          choosenMeshRef.value.material.iridescenceIOR = 1.3
           setLight(directionalLightRef.value, 2.367, '#bb966e', new Vector3(-0.94, 1.1, 1.6))
           setLight(directionalLightRef2.value, 1.35, '#5a4430', new Vector3(5.67, 3, -0.94))
           break
@@ -600,6 +611,18 @@ const attachControlPanels = (): void => {
     materialFolder.add(materialValues, 'metalness', 0, 1, 0.01)
       .onChange(function () {
         choosenMeshRef.value.material.metalness = materialValues.metalness
+      }).listen()
+    materialFolder.add(materialValues, 'reflectivity', 0, 1, 0.01)
+      .onChange(function () {
+        choosenMeshRef.value.material.reflectivity = materialValues.reflectivity
+      }).listen()
+    materialFolder.add(materialValues, 'iridescence', 0, 1, 0.01)
+      .onChange(function () {
+        choosenMeshRef.value.material.iridescence = materialValues.iridescence
+      }).listen()
+    materialFolder.add(materialValues, 'iridescenceIOR', 0, 1, 0.01)
+      .onChange(function () {
+        choosenMeshRef.value.material.iridescenceIOR = materialValues.iridescenceIOR
       }).listen()
     materialFolder.add(materialValues, 'sheen', 0, 1, 0.01)
       .onChange(function () {
