@@ -19,6 +19,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TransformControls, Stats, vLog, useGLTF, vLightHelper } from '@tresjs/cientos'
 import type Asset from '../sources'
 import sources from '../sources'
+import { ColorGUIHelper } from '../helpers'
 import GUI from 'lil-gui'
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { truthy, falsy } from '../typeHelpers'
@@ -557,7 +558,7 @@ const attachControlPanels = (): void => {
 
     const setLight = (light, intensity, color, position): void => {
       light.intensity = intensity
-      light.color = color
+      light.color = new Color(color as string)
       light.position.set(position.x, position.y, position.z)
     }
 
@@ -581,7 +582,8 @@ const attachControlPanels = (): void => {
           choosenMeshRef.value.material.roughness = 1
           materialValues.metalness = 1
           choosenMeshRef.value.material.metalness = 1
-          setLight(directionalLightRef.value, 2.367, new Color('#bb966e'), new Vector3(-0.94, 1.1, 1.6))
+          setLight(directionalLightRef.value, 2.367, '#bb966e', new Vector3(-0.94, 1.1, 1.6))
+          setLight(directionalLightRef2.value, 1.35, '#5a4430', new Vector3(5.67, 3, -0.94))
           break
         default:
           break
@@ -633,13 +635,13 @@ const attachControlPanels = (): void => {
     lightFolder.add(directionalLightRef.value.position, 'x').min(-10).max(10).step(0.01).listen()
     lightFolder.add(directionalLightRef.value.position, 'y').min(-10).max(10).step(0.01).listen()
     lightFolder.add(directionalLightRef.value.position, 'z').min(-10).max(10).step(0.01).listen()
-    lightFolder.addColor(directionalLightRef.value, 'color').name('color').listen()
+    lightFolder.addColor(new ColorGUIHelper(directionalLightRef.value, 'color'), 'value').name('color').listen()
 
     lightFolder.add(directionalLightRef2.value, 'intensity').min(0).max(10).step(0.001).name('intensity').listen()
     lightFolder.add(directionalLightRef2.value.position, 'x').min(-10).max(10).step(0.01).listen()
     lightFolder.add(directionalLightRef2.value.position, 'y').min(-10).max(10).step(0.01).listen()
     lightFolder.add(directionalLightRef2.value.position, 'z').min(-10).max(10).step(0.01).listen()
-    lightFolder.addColor(directionalLightRef2.value, 'color').name('color').listen()
+    lightFolder.addColor(new ColorGUIHelper(directionalLightRef2.value, 'color'), 'value').name('color').listen()
   }
 
   // const cubeTextureLoader = new CubeTextureLoader()
