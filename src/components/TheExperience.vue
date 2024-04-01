@@ -574,11 +574,15 @@ const attachControlPanels = (): void => {
         case 'isLeather':
           break
         case 'isMetal':
+          canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+          choosenMeshRef.value.material.color = new Color('#ffffff')
+          choosenMeshRef.value.material.roughness = 1
+          choosenMeshRef.value.material.metalness = 1
+          choosenMeshRef.value.material.envMapIntensity = 1
           break
         case 'isVelours':
           break
         case 'isWood':
-          console.log(canvasRef.value.context.renderer.value)
           canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
           choosenMeshRef.value.material.color = new Color('#ffffff')
           choosenMeshRef.value.material.roughness = 1
