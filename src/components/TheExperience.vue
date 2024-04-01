@@ -5,7 +5,7 @@ import type { ShallowRef } from 'vue'
 import { watch, reactive, shallowRef, shallowReactive, onMounted, onUnmounted } from 'vue'
 import type { Camera, Renderer } from 'three'
 import {
-  Mesh,
+  Mesh, CubeTextureLoader,
   Raycaster, Vector2, Vector3, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader,
   BasicShadowMap, SRGBColorSpace, REVISION,
   NoToneMapping,
@@ -38,7 +38,7 @@ const gl = reactive({
   alpha: false,
   shadowMapType: BasicShadowMap,
   outputColorSpace: SRGBColorSpace,
-  toneMapping: NoToneMapping
+  toneMapping: ACESFilmicToneMapping
 })
 
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`
@@ -572,27 +572,25 @@ const attachControlPanels = (): void => {
       parameters[prop] = true
       switch (prop) {
         case 'isLeather':
-          finalTexture.map = downloadedTexture
           break
         case 'isMetal':
-          finalTexture.roughnessMap = downloadedTexture
           break
         case 'isVelours':
-          finalTexture.metalnessMap = downloadedTexture
           break
         case 'isWood':
-          materialValues.roughness = 1
+          console.log(canvasRef.value.context.renderer.value)
+          canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+          choosenMeshRef.value.material.color = new Color('#ffffff')
           choosenMeshRef.value.material.roughness = 1
-          materialValues.metalness = 1
-          choosenMeshRef.value.material.metalness = 1
-          materialValues.ior = 1.45
+          choosenMeshRef.value.material.metalness = 0
           choosenMeshRef.value.material.ior = 1.45
-          materialValues.reflectivity = 1
           choosenMeshRef.value.material.reflectivity = 1
-          materialValues.iridescence = 0.13
-          choosenMeshRef.value.material.iridescence = 0.13
-          materialValues.iridescenceIOR = 1.3
-          choosenMeshRef.value.material.iridescenceIOR = 1.3
+          choosenMeshRef.value.material.iridescence = 0.2
+          choosenMeshRef.value.material.iridescenceIOR = 0.08
+          choosenMeshRef.value.material.specularIntensity = 0.5
+          choosenMeshRef.value.material.specularColor = new Color('#ffffff')
+          choosenMeshRef.value.material.envMapIntensity = 0.35
+          choosenMeshRef.value.material.needsUpdate = true
           setLight(directionalLightRef.value, 2.367, '#bb966e', new Vector3(-0.94, 1.1, 1.6))
           setLight(directionalLightRef2.value, 1.35, '#5a4430', new Vector3(5.67, 3, -0.94))
           break
@@ -667,15 +665,19 @@ const attachControlPanels = (): void => {
     lightFolder.addColor(new ColorGUIHelper(directionalLightRef2.value, 'color'), 'value').name('color').listen()
   }
 
-  // const cubeTextureLoader = new CubeTextureLoader()
-  // const environmentMap = cubeTextureLoader.load([
-  //   'textures/environment/1/px.jpg',
-  //   'textures/environment/1/nx.jpg',
-  //   'textures/environment/1/py.jpg',
-  //   'textures/environment/1/ny.jpg',
-  //   'textures/environment/1/pz.jpg',
-  //   'textures/environment/1/nz.jpg'
-  // ])
+  const cubeTextureLoader = new CubeTextureLoader()
+  const environmentMap = cubeTextureLoader.load([
+    'textures/environment/0/px.jpg',
+    'textures/environment/0/nx.jpg',
+    'textures/environment/0/py.jpg',
+    'textures/environment/0/ny.jpg',
+    'textures/environment/0/pz.jpg',
+    'textures/environment/0/nz.jpg'
+  ])
+  const scene = canvasRef.value.context.scene.value
+  // scene.background = environmentMap
+  scene.environment = environmentMap
+  choosenMeshRef.value.material.envMap = environmentMap
 }
 
 const handleMouseDown = (event): void => {
@@ -735,7 +737,7 @@ onMounted(() => {
     ACESFilmic: ACESFilmicToneMapping
   }).name('Tone Mapping')
 
-  gui.add(renderer, 'toneMappingExposure').min(0).max(10).step(0.001).name('Exposure')
+  gui.add(renderer, 'toneMappingExposure').min(0).max(10).step(0.001).listen().name('Exposure')
 
   document.addEventListener('mousedown', handleMouseDown, false)
   document.addEventListener('mouseup', saveRootGroupState, false)
