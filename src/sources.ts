@@ -123,7 +123,7 @@ export default [
     path: 'textures/normal/normal-wood.png'
   },
   {
-    name: 'sheenLeatherTexture',
+    name: 'sheenVeloursTexture',
     type: 'texture',
     subtype: 'sheen',
     path: 'textures/sheen/sheen-velours.png'

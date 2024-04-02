@@ -43,6 +43,7 @@ const gl = reactive({
 
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`
 const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null)
+const ambientLightRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 const directionalLightRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 const directionalLightRef2: ShallowRef<TresObject3D | null> = shallowRef(null)
 const transformControlsRef: ShallowRef<TresInstance | null> = shallowRef(null)
@@ -530,8 +531,10 @@ const attachControlPanels = (): void => {
   }
 
   const currentMaterial = choosenMeshRef.value.material
+  const materialColor = currentMaterial.color.getHexString()
   const materialSheenColor = currentMaterial.sheenColor.getHexString()
   const materialValues = {
+    color: `#${materialColor}`,
     roughness: currentMaterial.roughness,
     metalness: currentMaterial.metalness,
     ior: currentMaterial.ior,
@@ -593,6 +596,14 @@ const attachControlPanels = (): void => {
           choosenMeshRef.value.material.envMapIntensity = 1
           break
         case 'isVelours':
+          choosenMeshRef.value.material.color = new Color('#715656')
+          choosenMeshRef.value.material.roughness = 0.57
+          choosenMeshRef.value.material.sheen = 0.52
+          choosenMeshRef.value.material.sheenRoughness = 0.45
+          choosenMeshRef.value.material.sheenColor = new Color('#500202')
+          choosenMeshRef.value.material.envMapIntensity = 0
+          setLight(directionalLightRef.value, 2.367, '#ffffff', new Vector3(-0.94, 1.1, 1.6))
+          setLight(directionalLightRef2.value, 1.35, '#ffffff', new Vector3(5.67, 3, -0.94))
           break
         case 'isWood':
           canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
@@ -619,6 +630,11 @@ const attachControlPanels = (): void => {
 
   if (materialFolder == null) {
     materialFolder = gui.addFolder('Material')
+    materialFolder.addColor(materialValues, 'color')
+      .onChange(function () {
+        const colorValue = parseInt(materialValues.color.replace('#', '0x'), 16)
+        choosenMeshRef.value.material.color.set(colorValue)
+      }).listen()
     materialFolder.add(materialValues, 'roughness', 0, 1, 0.01)
       .onChange(function () {
         choosenMeshRef.value.material.roughness = materialValues.roughness
@@ -680,6 +696,9 @@ const attachControlPanels = (): void => {
     lightFolder.add(directionalLightRef2.value.position, 'y').min(-10).max(10).step(0.01).listen()
     lightFolder.add(directionalLightRef2.value.position, 'z').min(-10).max(10).step(0.01).listen()
     lightFolder.addColor(new ColorGUIHelper(directionalLightRef2.value, 'color'), 'value').name('color').listen()
+
+    lightFolder.add(ambientLightRef.value, 'intensity').min(0).max(10).step(0.001).name('intensity').listen()
+    lightFolder.addColor(new ColorGUIHelper(ambientLightRef.value, 'color'), 'value').name('color').listen()
   }
 
   const cubeTextureLoader = new CubeTextureLoader()
@@ -837,6 +856,7 @@ onUnmounted(() => {
     @mouse-down='() => { cameraControls.enabled = false }'
     @mouse-up='() => { cameraControls.enabled = true }'
     />
+    <TresAmbientLight ref='ambientLightRef' :intensity="1" />
    <TresDirectionalLight
       ref='directionalLightRef'
       v-light-helper
