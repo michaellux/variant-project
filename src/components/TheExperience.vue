@@ -596,6 +596,8 @@ const attachControlPanels = (): void => {
           choosenMeshRef.value.material.envMapIntensity = 1
           break
         case 'isVelours':
+          canvasRef.value.context.renderer.value.toneMappingExposure = 3
+          canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
           choosenMeshRef.value.material.color = new Color('#715656')
           choosenMeshRef.value.material.roughness = 0.57
           choosenMeshRef.value.material.sheen = 0.52
