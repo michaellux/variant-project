@@ -572,6 +572,16 @@ const attachControlPanels = (): void => {
       parameters[prop] = true
       switch (prop) {
         case 'isLeather':
+          canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+          choosenMeshRef.value.material.color = new Color('#ffffff')
+          choosenMeshRef.value.material.roughness = 1
+          choosenMeshRef.value.material.metalness = 1
+          choosenMeshRef.value.material.reflectivity = 0.5
+          choosenMeshRef.value.material.iridescence = 0
+          choosenMeshRef.value.material.iridescenceIOR = 0
+          choosenMeshRef.value.material.envMapIntensity = 0.3
+          setLight(directionalLightRef.value, 10, '#b4bcd5', new Vector3(-1.19, 0.59, 0.33))
+          setLight(directionalLightRef2.value, 1.222, '#525b74', new Vector3(6.44, 3, 4.15))
           break
         case 'isMetal':
           canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
