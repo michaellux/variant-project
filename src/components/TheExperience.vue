@@ -136,7 +136,14 @@ const handleAddMesh = async (geometryName: string, textureInfo, position, rotati
   }
 }
 
-const handleApplyTexture = async (textureSubtypeName: string): Promise<void> => {
+const applyMaterialParams = (material, savedMaterialParams): void => {
+  for (const [key, value] of Object.entries(savedMaterialParams as object)) {
+    material[key] = value
+  }
+  material.needsUpdate = true
+}
+
+const handleApplyTexture = async (textureSubtypeName: string, materialParams: object): Promise<void> => {
   const modelMaterial = choosenMeshRef.value.material
   const newMaterial = new modelMaterial.constructor()
   const finalTexture = {
@@ -292,6 +299,9 @@ const handleApplyTexture = async (textureSubtypeName: string): Promise<void> => 
     choosenMeshRef.value.traverse((child) => {
       if (child instanceof Mesh) {
         child.material = newMaterial // применяем свежий материал
+
+        applyMaterialParams(child.material, materialParams)
+
         if (finalTexture.map !== null) {
           child.material.map = finalTexture.map
           child.material.map.wrapS = RepeatWrapping
@@ -396,7 +406,7 @@ const loadRootGroupState = async (): void => {
           item.scale as object
         ).then(async () => {
           const texturePromises: Array<Promise<void>> = Object.values(item.textureInfo as object).map(async textureSubtypeName => {
-            await handleApplyTexture(textureSubtypeName as string)
+            await handleApplyTexture(textureSubtypeName as string, item.materialParams as object)
           })
           return await Promise.all(texturePromises)
         })
@@ -421,6 +431,21 @@ const saveRootGroupState = (): void => {
       const geometryName = meshNameArr[1].split('_')[0]
       const textureInfo = JSON.parse(meshNameArr[2])
       const rootMeshInGroup = rootGroup.children[0]
+      const materialParams = {
+        color: rootMeshInGroup.material.color,
+        roughness: rootMeshInGroup.material.roughness,
+        metalness: rootMeshInGroup.material.metalness,
+        reflectivity: rootMeshInGroup.material.reflectivity,
+        ior: rootMeshInGroup.material.ior,
+        iridescence: rootMeshInGroup.material.iridescence,
+        iridescenceIOR: rootMeshInGroup.material.iridescenceIOR,
+        envMapIntensity: rootMeshInGroup.material.envMapIntensity,
+        sheen: rootMeshInGroup.material.sheen,
+        sheenRoughness: rootMeshInGroup.material.sheenRoughness,
+        sheenColor: rootMeshInGroup.material.sheenColor,
+        specularIntensity: rootMeshInGroup.material.specularIntensity,
+        specularColor: rootMeshInGroup.material.specularColor
+      }
       const meshInfo = {
         position: {
           x: rootMeshInGroup.position.x,
@@ -438,7 +463,8 @@ const saveRootGroupState = (): void => {
           z: rootMeshInGroup.scale.z
         },
         geometryName,
-        textureInfo
+        textureInfo,
+        materialParams
       }
       meshes = [...meshes, meshInfo]
     })
@@ -581,11 +607,19 @@ const attachControlPanels = (): void => {
           choosenMeshRef.value.material.roughness = 1
           choosenMeshRef.value.material.metalness = 1
           choosenMeshRef.value.material.reflectivity = 0.5
+          choosenMeshRef.value.material.ior = 0
           choosenMeshRef.value.material.iridescence = 0
           choosenMeshRef.value.material.iridescenceIOR = 0
+          choosenMeshRef.value.material.sheen = 0
+          choosenMeshRef.value.material.sheenRoughness = 0
+          choosenMeshRef.value.material.sheenColor = new Color('#ffffff')
+          choosenMeshRef.value.material.specularIntensity = 0.5
+          choosenMeshRef.value.material.specularColor = new Color('#ffffff')
           choosenMeshRef.value.material.envMapIntensity = 0.3
+          choosenMeshRef.value.material.needsUpdate = true
           setLight(directionalLightRef.value, 10, '#b4bcd5', new Vector3(-1.19, 0.59, 0.33))
           setLight(directionalLightRef2.value, 1.222, '#525b74', new Vector3(6.44, 3, 4.15))
+          setLight(ambientLightRef.value, 0, '#ffffff', new Vector3(0, 0, 0))
           break
         case 'isMetal':
           canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
@@ -593,19 +627,39 @@ const attachControlPanels = (): void => {
           choosenMeshRef.value.material.color = new Color('#ffffff')
           choosenMeshRef.value.material.roughness = 1
           choosenMeshRef.value.material.metalness = 1
+          choosenMeshRef.value.material.reflectivity = 0
+          choosenMeshRef.value.material.ior = 0
+          choosenMeshRef.value.material.iridescence = 0
+          choosenMeshRef.value.material.iridescenceIOR = 0
+          choosenMeshRef.value.material.sheen = 0
+          choosenMeshRef.value.material.sheenRoughness = 0
+          choosenMeshRef.value.material.sheenColor = new Color('#ffffff')
+          choosenMeshRef.value.material.specularIntensity = 0.5
+          choosenMeshRef.value.material.specularColor = new Color('#ffffff')
           choosenMeshRef.value.material.envMapIntensity = 1
+          choosenMeshRef.value.material.needsUpdate = true
+          setLight(ambientLightRef.value, 0, '#ffffff', new Vector3(0, 0, 0))
           break
         case 'isVelours':
           canvasRef.value.context.renderer.value.toneMappingExposure = 3
           canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
           choosenMeshRef.value.material.color = new Color('#715656')
           choosenMeshRef.value.material.roughness = 0.57
+          choosenMeshRef.value.material.metalness = 0.2
+          choosenMeshRef.value.material.reflectivity = 0
+          choosenMeshRef.value.material.ior = 0
+          choosenMeshRef.value.material.iridescence = 0
+          choosenMeshRef.value.material.iridescenceIOR = 0
           choosenMeshRef.value.material.sheen = 0.52
           choosenMeshRef.value.material.sheenRoughness = 0.45
           choosenMeshRef.value.material.sheenColor = new Color('#500202')
+          choosenMeshRef.value.material.specularIntensity = 0.5
+          choosenMeshRef.value.material.specularColor = new Color('#ffffff')
           choosenMeshRef.value.material.envMapIntensity = 0
+          choosenMeshRef.value.material.needsUpdate = true
           setLight(directionalLightRef.value, 2.367, '#ffffff', new Vector3(-0.94, 1.1, 1.6))
           setLight(directionalLightRef2.value, 1.35, '#ffffff', new Vector3(5.67, 3, -0.94))
+          setLight(ambientLightRef.value, 0.5, '#ffffff', new Vector3(0, 0, 0))
           break
         case 'isWood':
           canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
@@ -617,12 +671,16 @@ const attachControlPanels = (): void => {
           choosenMeshRef.value.material.reflectivity = 1
           choosenMeshRef.value.material.iridescence = 0.2
           choosenMeshRef.value.material.iridescenceIOR = 0.08
+          choosenMeshRef.value.material.sheen = 0
+          choosenMeshRef.value.material.sheenRoughness = 0
+          choosenMeshRef.value.material.sheenColor = new Color('#ffffff')
           choosenMeshRef.value.material.specularIntensity = 0.5
           choosenMeshRef.value.material.specularColor = new Color('#ffffff')
           choosenMeshRef.value.material.envMapIntensity = 0.35
           choosenMeshRef.value.material.needsUpdate = true
           setLight(directionalLightRef.value, 2.367, '#bb966e', new Vector3(-0.94, 1.1, 1.6))
           setLight(directionalLightRef2.value, 1.35, '#5a4430', new Vector3(5.67, 3, -0.94))
+          setLight(ambientLightRef.value, 0, '#ffffff', new Vector3(0, 0, 0))
           break
         default:
           break
@@ -713,7 +771,6 @@ const attachControlPanels = (): void => {
     'textures/environment/0/nz.jpg'
   ])
   const scene = canvasRef.value.context.scene.value
-  // scene.background = environmentMap
   scene.environment = environmentMap
   choosenMeshRef.value.material.envMap = environmentMap
 }
@@ -806,6 +863,7 @@ watch(
     if (truthy(newValue)) {
       renderer = canvasRef.value.context.renderer.value
       if (truthy(renderer)) {
+        renderer.useLegacyLights = false
         const camera: Camera = canvasRef.value.context.camera.value
         const loadCameraState = (): void => {
           if (localStorage.getItem('camera.position.x') !== null) {
