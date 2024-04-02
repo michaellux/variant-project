@@ -56,7 +56,6 @@ let positionFolder = null
 let textureFolder = null
 let presetFolder = null
 let deleteMeshController = null
-let materialFolder = null
 let lightFolder = null
 let renderer: Renderer = null
 
@@ -134,13 +133,6 @@ const handleAddMesh = async (geometryName: string, textureInfo, position, rotati
   } else {
     alert('Не выбрана геометрия!')
   }
-}
-
-const applyMaterialParams = (material, savedMaterialParams): void => {
-  for (const [key, value] of Object.entries(savedMaterialParams as object)) {
-    material[key] = value
-  }
-  material.needsUpdate = true
 }
 
 const handleApplyTexture = async (textureSubtypeName: string, materialParams: object): Promise<void> => {
@@ -299,8 +291,6 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
     choosenMeshRef.value.traverse((child) => {
       if (child instanceof Mesh) {
         child.material = newMaterial // применяем свежий материал
-
-        applyMaterialParams(child.material, materialParams)
 
         if (finalTexture.map !== null) {
           child.material.map = finalTexture.map
@@ -556,25 +546,6 @@ const attachControlPanels = (): void => {
     deleteMeshController = gui.add(controlValues, 'removeMesh').name('Delete')
   }
 
-  const currentMaterial = choosenMeshRef.value.material
-  const materialColor = currentMaterial.color.getHexString()
-  const materialSheenColor = currentMaterial.sheenColor.getHexString()
-  const materialValues = {
-    color: `#${materialColor}`,
-    roughness: currentMaterial.roughness,
-    metalness: currentMaterial.metalness,
-    ior: currentMaterial.ior,
-    iridescence: currentMaterial.iridescence,
-    iridescenceIOR: currentMaterial.iridescenceIOR,
-    reflectivity: currentMaterial.reflectivity,
-    sheen: currentMaterial.sheen,
-    sheenRoughness: currentMaterial.sheenRoughness,
-    sheenColor: `#${materialSheenColor}`,
-    clearcoat: currentMaterial.clearcoat,
-    clearcoatRoughness: currentMaterial.clearcoatRoughness,
-    envMapIntensity: currentMaterial.envMapIntensity
-  }
-
   if (presetFolder == null) {
     const parameters = {
       isLeather: false,
@@ -686,61 +657,6 @@ const attachControlPanels = (): void => {
           break
       }
     }
-  }
-
-  if (materialFolder == null) {
-    materialFolder = gui.addFolder('Material')
-    materialFolder.addColor(materialValues, 'color')
-      .onChange(function () {
-        const colorValue = parseInt(materialValues.color.replace('#', '0x'), 16)
-        choosenMeshRef.value.material.color.set(colorValue)
-      }).listen()
-    materialFolder.add(materialValues, 'roughness', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.roughness = materialValues.roughness
-      }).listen()
-    materialFolder.add(materialValues, 'metalness', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.metalness = materialValues.metalness
-      }).listen()
-    materialFolder.add(materialValues, 'reflectivity', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.reflectivity = materialValues.reflectivity
-      }).listen()
-    materialFolder.add(materialValues, 'iridescence', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.iridescence = materialValues.iridescence
-      }).listen()
-    materialFolder.add(materialValues, 'iridescenceIOR', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.iridescenceIOR = materialValues.iridescenceIOR
-      }).listen()
-    materialFolder.add(materialValues, 'sheen', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.sheen = materialValues.sheen
-      }).listen()
-    materialFolder.add(materialValues, 'sheenRoughness', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.sheenRoughness = materialValues.sheenRoughness
-      }).listen()
-    materialFolder.addColor(materialValues, 'sheenColor')
-      .onChange(function () {
-        const colorValue = parseInt(materialValues.sheenColor.replace('#', '0x'), 16)
-        choosenMeshRef.value.material.sheenColor.set(colorValue)
-      }).listen()
-    materialFolder.add(materialValues, 'clearcoat', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.clearcoat = materialValues.clearcoat
-      }).listen()
-    materialFolder.add(materialValues, 'clearcoatRoughness', 0, 1, 0.01)
-      .onChange(function () {
-        choosenMeshRef.value.material.clearcoatRoughness = materialValues.clearcoatRoughness
-      }).listen()
-    materialFolder.add(materialValues, 'envMapIntensity', 0, 50, 0.01)
-      .name('envMap intensity')
-      .onChange(function () {
-        choosenMeshRef.value.material.envMapIntensity = materialValues.envMapIntensity
-      }).listen()
   }
 
   if (lightFolder == null) {
