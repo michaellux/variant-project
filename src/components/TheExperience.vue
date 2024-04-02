@@ -573,6 +573,7 @@ const attachControlPanels = (): void => {
       switch (prop) {
         case 'isLeather':
           canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+          canvasRef.value.context.renderer.value.toneMapping = LinearToneMapping
           choosenMeshRef.value.material.color = new Color('#ffffff')
           choosenMeshRef.value.material.roughness = 1
           choosenMeshRef.value.material.metalness = 1
@@ -585,6 +586,7 @@ const attachControlPanels = (): void => {
           break
         case 'isMetal':
           canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+          canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
           choosenMeshRef.value.material.color = new Color('#ffffff')
           choosenMeshRef.value.material.roughness = 1
           choosenMeshRef.value.material.metalness = 1
@@ -594,6 +596,7 @@ const attachControlPanels = (): void => {
           break
         case 'isWood':
           canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+          canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
           choosenMeshRef.value.material.color = new Color('#ffffff')
           choosenMeshRef.value.material.roughness = 1
           choosenMeshRef.value.material.metalness = 0
