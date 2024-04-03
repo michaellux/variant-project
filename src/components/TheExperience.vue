@@ -1,11 +1,11 @@
 <script setup lang='ts'>
-import type { TresCamera, TresObject3D } from '@tresjs/core'
+import type { TresObject3D } from '@tresjs/core'
 import { TresCanvas, useTexture, useRenderLoop, useSeek } from '@tresjs/core'
 import type { ShallowRef } from 'vue'
 import { watch, reactive, shallowRef, shallowReactive, onMounted, onUnmounted } from 'vue'
-import type { Camera, Renderer, Texture } from 'three'
+import type { Camera, Object3D, Texture, Renderer } from 'three'
 import {
-  Mesh, CubeTextureLoader,
+  Mesh, CubeTextureLoader, Group,
   Raycaster, Vector2, Vector3, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader,
   BasicShadowMap, SRGBColorSpace, REVISION,
   NoToneMapping,
@@ -22,10 +22,11 @@ import {
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TransformControls, Stats, vLog, useGLTF, vLightHelper } from '@tresjs/cientos'
-import type { Asset, TextureInfo, MeshInfo } from '../@types/types.ts'
+import type { Asset, TextureMapInfo, TextureInfo, MeshInfo } from '../@types/types.ts'
 import { truthy, falsy } from '../@types/helpers'
 import sources from '../sources'
 import { ColorGUIHelper } from '../helpers'
+import type Controller from 'lil-gui'
 import GUI from 'lil-gui'
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import ls from 'localstorage-slim'
@@ -64,16 +65,16 @@ const ambientLightRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 const directionalLightRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 const directionalLightRef2: ShallowRef<TresObject3D | null> = shallowRef(null)
 const transformControlsRef: ShallowRef<typeof TransformControls | null> = shallowRef(null)
-const cameraRef: ShallowRef<TresCamera | null> = shallowRef(null)
+const cameraRef: ShallowRef<Camera | null> = shallowRef(null)
 const groupRef: ShallowRef<TresObject3D | null> = shallowRef(null)
-const choosenMeshRef: ShallowRef<TresObject3D | null> = shallowRef(null)
+const choosenMeshRef: ShallowRef<Object3D | null> = shallowRef(null)
 
-let gui = null
-let positionFolder = null
-let textureFolder = null
-let presetFolder = null
-let deleteMeshController = null
-let lightFolder = null
+let gui: GUI | null = null
+let positionFolder: GUI | null = null
+let textureFolder: GUI | null = null
+let presetFolder: GUI | null = null
+let deleteMeshController: Controller | null = null
+let lightFolder: GUI | null = null
 let renderer: Renderer | null = null
 
 const notChoosetext = 'Не выбрано'
@@ -94,7 +95,7 @@ const controlValues = {
 let cameraControls: OrbitControls | null = null
 let loadingStateNow = true
 
-const handleAddMesh = async (geometryName: string, textureInfo: object, position: Vector3, rotation: Vector3, scale: Vector3): Promise<void> => {
+const handleAddMesh = async (geometryName: string, textureInfo?: object, position?: Vector3, rotation?: Vector3, scale?: Vector3): Promise<void> => {
   if (geometryName !== notChoosetext) {
     const modelFile = sources.find(
       (source) => source.type === 'model' && source.name === geometryName
@@ -157,7 +158,7 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
   if (truthy(modelMaterial)) {
     newMaterial = new modelMaterial.constructor()
   }
-  const finalTexture = {
+  const finalTextureMapsInfo: TextureMapInfo = {
     map: null,
     roughnessMap: null,
     metalnessMap: null,
@@ -165,37 +166,37 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
     sheenRoughnessMap: null
   }
   if (textureSubtypeName !== notChoosetext) {
-    const applyTexture = (texture: Texture, subtype?: string): void => {
+    const applyTexture = (texture: Texture | CompressedTexture, subtype?: string): void => {
       const downloadedTexture = texture
       if (falsy(downloadedTexture instanceof CompressedTexture)) {
-        if (downloadedTexture.map != null) {
-          finalTexture.map = downloadedTexture.map
+        if ('map' in downloadedTexture && downloadedTexture.map != null) {
+          finalTextureMapsInfo.map = downloadedTexture.map
         }
         if (downloadedTexture.roughnessMap != null) {
-          finalTexture.roughnessMap = downloadedTexture.roughnessMap
+          finalTextureMapsInfo.roughnessMap = downloadedTexture.roughnessMap
         }
         if (downloadedTexture.metalnessMap != null) {
-          finalTexture.metalnessMap = downloadedTexture.metalnessMap
+          finalTextureMapsInfo.metalnessMap = downloadedTexture.metalnessMap
         }
         if (downloadedTexture.normalMap != null) {
-          finalTexture.normalMap = downloadedTexture.normalMap
+          finalTextureMapsInfo.normalMap = downloadedTexture.normalMap
         }
         if (subtype === 'sheen') {
-          finalTexture.sheenRoughnessMap = downloadedTexture
+          finalTextureMapsInfo.sheenRoughnessMap = downloadedTexture
         }
       } else {
         switch (subtype) {
           case 'albedo':
-            finalTexture.map = downloadedTexture
+            finalTextureMapsInfo.map = downloadedTexture
             break
           case 'roughness':
-            finalTexture.roughnessMap = downloadedTexture
+            finalTextureMapsInfo.roughnessMap = downloadedTexture
             break
           case 'metalness':
-            finalTexture.metalnessMap = downloadedTexture
+            finalTextureMapsInfo.metalnessMap = downloadedTexture
             break
           case 'normal':
-            finalTexture.normalMap = downloadedTexture
+            finalTextureMapsInfo.normalMap = downloadedTexture
             break
           default:
             break
@@ -311,8 +312,8 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
       if (child instanceof Mesh) {
         child.material = newMaterial // применяем свежий материал
 
-        if (finalTexture.map !== null) {
-          child.material.map = finalTexture.map
+        if (finalTextureMapsInfo.map !== null) {
+          child.material.map = finalTextureMapsInfo.map
           child.material.map.wrapS = RepeatWrapping
           child.material.map.wrapT = RepeatWrapping
           child.material.map.x = 0.5
@@ -320,8 +321,8 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
           child.material.map.rotation = Math.PI * 0.5
           child.material.map.needsUpdate = true
         }
-        if (finalTexture.roughnessMap !== null) {
-          child.material.roughnessMap = finalTexture.roughnessMap
+        if (finalTextureMapsInfo.roughnessMap !== null) {
+          child.material.roughnessMap = finalTextureMapsInfo.roughnessMap
           child.material.roughnessMap.wrapS = RepeatWrapping
           child.material.roughnessMap.wrapT = RepeatWrapping
           child.material.roughnessMap.x = 0.5
@@ -329,8 +330,8 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
           child.material.roughnessMap.rotation = Math.PI * 0.5
           child.material.roughnessMap.needsUpdate = true
         }
-        if (finalTexture.metalnessMap !== null) {
-          child.material.metalnessMap = finalTexture.metalnessMap
+        if (finalTextureMapsInfo.metalnessMap !== null) {
+          child.material.metalnessMap = finalTextureMapsInfo.metalnessMap
           child.material.metalnessMap.wrapS = RepeatWrapping
           child.material.metalnessMap.wrapT = RepeatWrapping
           child.material.metalnessMap.x = 0.5
@@ -338,8 +339,8 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
           child.material.metalnessMap.rotation = Math.PI * 0.5
           child.material.metalnessMap.needsUpdate = true
         }
-        if (finalTexture.normalMap !== null) {
-          child.material.normalMap = finalTexture.normalMap
+        if (finalTextureMapsInfo.normalMap !== null) {
+          child.material.normalMap = finalTextureMapsInfo.normalMap
           child.material.normalMap.wrapS = RepeatWrapping
           child.material.normalMap.wrapT = RepeatWrapping
           child.material.normalMap.x = 0.5
@@ -347,8 +348,8 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
           child.material.normalMap.rotation = Math.PI * 0.5
           child.material.normalMap.needsUpdate = true
         }
-        if (finalTexture.sheenRoughnessMap !== null) {
-          child.material.sheenRoughnessMap = finalTexture.sheenRoughnessMap
+        if (finalTextureMapsInfo.sheenRoughnessMap !== null) {
+          child.material.sheenRoughnessMap = finalTextureMapsInfo.sheenRoughnessMap
           child.material.sheenRoughnessMap.wrapS = RepeatWrapping
           child.material.sheenRoughnessMap.wrapT = RepeatWrapping
           child.material.sheenRoughnessMap.x = 0.5
@@ -392,9 +393,9 @@ const handleDeleteMesh = (): void => {
     choosenMeshRef.value = null
     rootMeshGroup.value = null
 
-    positionFolder.hide()
-    textureFolder.hide()
-    deleteMeshController.destroy()
+    positionFolder?.hide()
+    textureFolder?.hide()
+    deleteMeshController?.destroy()
     deleteMeshController = null
   }
   saveRootGroupState()
@@ -440,7 +441,7 @@ const saveRootGroupState = (): void => {
       const geometryName = meshNameArr[1].split('_')[0]
       const textureInfo: TextureInfo = JSON.parse(meshNameArr[2])
       const rootMeshInGroup: Mesh = rootGroup.children[0]
-      const materialParams = {
+      const materialParams: MaterialParams = {
         color: rootMeshInGroup.material instanceof MeshBasicMaterial ? rootMeshInGroup.material.color : undefined,
         roughness: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.roughness : undefined,
         metalness: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.metalness : undefined,
@@ -468,17 +469,17 @@ const saveRootGroupState = (): void => {
 }
 
 const saveCameraState = (): void => {
-  localStorage.setItem('camera.position.x', cameraRef.value.position.x.toString())
-  localStorage.setItem('camera.position.y', cameraRef.value.position.y.toString())
-  localStorage.setItem('camera.position.z', cameraRef.value.position.z.toString())
-  localStorage.setItem('camera.rotation.x', cameraRef.value.rotation.x.toString())
-  localStorage.setItem('camera.rotation.y', cameraRef.value.rotation.y.toString())
-  localStorage.setItem('camera.rotation.z', cameraRef.value.rotation.z.toString())
-  localStorage.setItem('camera.zoom', cameraRef.value.zoom.toString())
+  localStorage.setItem('camera.position.x', (cameraRef.value?.position.x ?? '0').toString())
+  localStorage.setItem('camera.position.y', (cameraRef.value?.position.y ?? '0').toString())
+  localStorage.setItem('camera.position.z', (cameraRef.value?.position.z ?? '0').toString())
+  localStorage.setItem('camera.rotation.x', (cameraRef.value?.rotation.x ?? '0').toString())
+  localStorage.setItem('camera.rotation.y', (cameraRef.value?.rotation.y ?? '0').toString())
+  localStorage.setItem('camera.rotation.z', (cameraRef.value?.rotation.z ?? '0').toString())
+  localStorage.setItem('camera.zoom', (cameraRef.value?.zoom ?? '0').toString() as string)
 
-  localStorage.setItem('controls.target.x', cameraControls.target.x.toString())
-  localStorage.setItem('controls.target.y', cameraControls.target.y.toString())
-  localStorage.setItem('controls.target.z', cameraControls.target.z.toString())
+  localStorage.setItem('controls.target.x', (cameraControls?.target.x ?? '0').toString())
+  localStorage.setItem('controls.target.y', (cameraControls?.target.y ?? '0').toString())
+  localStorage.setItem('controls.target.z', (cameraControls?.target.z ?? '0').toString())
 }
 
 const saveAttachedMeshState = (uuid): void => {
@@ -667,15 +668,15 @@ const attachControlPanels = (): void => {
   if (lightFolder == null) {
     lightFolder = gui.addFolder('Light')
     lightFolder.add(directionalLightRef.value, 'intensity').min(0).max(10).step(0.001).name('intensity').listen()
-    lightFolder.add(directionalLightRef.value.position, 'x').min(-10).max(10).step(0.01).listen()
-    lightFolder.add(directionalLightRef.value.position, 'y').min(-10).max(10).step(0.01).listen()
-    lightFolder.add(directionalLightRef.value.position, 'z').min(-10).max(10).step(0.01).listen()
+    lightFolder.add(directionalLightRef.value?.position, 'x').min(-10).max(10).step(0.01).listen()
+    lightFolder.add(directionalLightRef.value?.position, 'y').min(-10).max(10).step(0.01).listen()
+    lightFolder.add(directionalLightRef.value?.position, 'z').min(-10).max(10).step(0.01).listen()
     lightFolder.addColor(new ColorGUIHelper(directionalLightRef.value, 'color'), 'value').name('color').listen()
 
     lightFolder.add(directionalLightRef2.value, 'intensity').min(0).max(10).step(0.001).name('intensity').listen()
-    lightFolder.add(directionalLightRef2.value.position, 'x').min(-10).max(10).step(0.01).listen()
-    lightFolder.add(directionalLightRef2.value.position, 'y').min(-10).max(10).step(0.01).listen()
-    lightFolder.add(directionalLightRef2.value.position, 'z').min(-10).max(10).step(0.01).listen()
+    lightFolder.add(directionalLightRef2.value?.position, 'x').min(-10).max(10).step(0.01).listen()
+    lightFolder.add(directionalLightRef2.value?.position, 'y').min(-10).max(10).step(0.01).listen()
+    lightFolder.add(directionalLightRef2.value?.position, 'z').min(-10).max(10).step(0.01).listen()
     lightFolder.addColor(new ColorGUIHelper(directionalLightRef2.value, 'color'), 'value').name('color').listen()
 
     lightFolder.add(ambientLightRef.value, 'intensity').min(0).max(10).step(0.001).name('intensity').listen()
@@ -699,17 +700,19 @@ const attachControlPanels = (): void => {
 const handleMouseDown = (event): void => {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
-  raycaster.setFromCamera(mouse, cameraRef.value)
+  if (truthy(cameraRef.value)) {
+    raycaster.setFromCamera(mouse, cameraRef.value)
+  }
 
   const intersects = raycaster.intersectObjects(
-    canvasRef.value.context.scene.value.children as [],
+    canvasRef.value?.context.scene.value.children as [],
     true
   )
 
   if (intersects.length > 0) {
-    const findRootGroupOfMesh = (intersectMesh): Mesh => {
-      let currentNode = intersectMesh.parent
-      while (truthy(currentNode?.isObject3D) && falsy(currentNode?.isGroup)) {
+    const findRootGroupOfMesh = (intersectObject: Object3D): Object3D | null => {
+      let currentNode = intersectObject.parent
+      while (truthy(currentNode?.isObject3D) && falsy(currentNode instanceof Group)) {
         currentNode = currentNode.parent
       }
       if (truthy(currentNode?.name.endsWith('_inScene'))) {
@@ -745,16 +748,17 @@ onMounted(() => {
   gui.add(controlValues, 'mesh', geometries)
   gui.add(controlValues, 'addMesh').name('Add mesh')
 
-  gui.add(renderer, 'toneMapping', {
-    No: NoToneMapping,
-    Linear: LinearToneMapping,
-    Reinhard: ReinhardToneMapping,
-    Cineon: CineonToneMapping,
-    ACESFilmic: ACESFilmicToneMapping
-  }).name('Tone Mapping')
+  if (truthy(renderer)) {
+    gui.add(renderer, 'toneMapping', {
+      No: NoToneMapping,
+      Linear: LinearToneMapping,
+      Reinhard: ReinhardToneMapping,
+      Cineon: CineonToneMapping,
+      ACESFilmic: ACESFilmicToneMapping
+    }).name('Tone Mapping')
 
-  gui.add(renderer, 'toneMappingExposure').min(0).max(10).step(0.001).listen().name('Exposure')
-
+    gui.add(renderer, 'toneMappingExposure').min(0).max(10).step(0.001).listen().name('Exposure')
+  }
   document.addEventListener('mousedown', handleMouseDown, false)
   document.addEventListener('mouseup', saveRootGroupState, false)
 })
@@ -782,29 +786,38 @@ watch(
   () => canvasRef.value,
   (newValue) => {
     if (truthy(newValue)) {
-      renderer = canvasRef.value.context.renderer.value
+      renderer = canvasRef.value?.context.renderer.value
       if (truthy(renderer)) {
-        renderer.useLegacyLights = false
-        const camera: Camera = canvasRef.value.context.camera.value
+        const camera: Camera = canvasRef.value?.context.camera.value
         const loadCameraState = (): void => {
           if (localStorage.getItem('camera.position.x') !== null) {
-            camera.position.x = parseFloat(localStorage.getItem('camera.position.x'))
-            camera.position.y = parseFloat(localStorage.getItem('camera.position.y'))
-            camera.position.z = parseFloat(localStorage.getItem('camera.position.z'))
+            camera.position.x = parseFloat(localStorage.getItem('camera.position.x') ?? '0')
+            camera.position.y = parseFloat(localStorage.getItem('camera.position.y') ?? '0')
+            camera.position.z = parseFloat(localStorage.getItem('camera.position.z') ?? '0')
 
-            camera.rotation.x = parseFloat(localStorage.getItem('camera.rotation.x'))
-            camera.rotation.y = parseFloat(localStorage.getItem('camera.rotation.y'))
-            camera.rotation.z = parseFloat(localStorage.getItem('camera.rotation.z'))
+            camera.rotation.x = parseFloat(localStorage.getItem('camera.rotation.x') ?? '0')
+            camera.rotation.y = parseFloat(localStorage.getItem('camera.rotation.y') ?? '0')
+            camera.rotation.z = parseFloat(localStorage.getItem('camera.rotation.z') ?? '0')
 
-            camera.zoom = parseFloat(localStorage.getItem('camera.zoom'))
+            camera.zoom = parseFloat(localStorage.getItem('camera.zoom') ?? '0')
           }
         }
         loadCameraState()
         cameraControls = new OrbitControls(camera, renderer.domElement)
         if (localStorage.getItem('controls.target.x') !== null) {
-          cameraControls.target.x = parseFloat(localStorage.getItem('controls.target.x'))
-          cameraControls.target.y = parseFloat(localStorage.getItem('controls.target.y'))
-          cameraControls.target.z = parseFloat(localStorage.getItem('controls.target.z'))
+          const x = localStorage.getItem('controls.target.x')
+          const y = localStorage.getItem('controls.target.y')
+          const z = localStorage.getItem('controls.target.z')
+
+          if (x !== null) {
+            cameraControls.target.x = parseFloat(x)
+          }
+          if (y !== null) {
+            cameraControls.target.y = parseFloat(y)
+          }
+          if (z !== null) {
+            cameraControls.target.z = parseFloat(z)
+          }
         }
 
         cameraControls.enableDamping = true // for smooth movement
@@ -834,8 +847,8 @@ onUnmounted(() => {
     v-if='choosenMeshRef'
     :object='choosenMeshRef'
     v-bind='transformState'
-    @mouse-down='() => { cameraControls.enabled = false }'
-    @mouse-up='() => { cameraControls.enabled = true }'
+    @mouse-down='() => { cameraControls?.enabled = false }'
+    @mouse-up='() => { cameraControls?.enabled = true }'
     />
     <TresAmbientLight ref='ambientLightRef' :intensity="1" />
    <TresDirectionalLight
