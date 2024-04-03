@@ -3,7 +3,7 @@ import type { TresCamera, TresObject3D } from '@tresjs/core'
 import { TresCanvas, useTexture, useRenderLoop, useSeek } from '@tresjs/core'
 import type { ShallowRef } from 'vue'
 import { watch, reactive, shallowRef, shallowReactive, onMounted, onUnmounted } from 'vue'
-import type { Camera, Renderer } from 'three'
+import type { Camera, Renderer, Texture } from 'three'
 import {
   Mesh, CubeTextureLoader,
   Raycaster, Vector2, Vector3, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader,
@@ -13,24 +13,41 @@ import {
   ReinhardToneMapping,
   CineonToneMapping,
   ACESFilmicToneMapping,
-  Color
+  Color,
+  MeshBasicMaterial,
+  MeshPhongMaterial,
+  MeshPhysicalMaterial,
+  MeshStandardMaterial,
+  CompressedTexture
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TransformControls, Stats, vLog, useGLTF, vLightHelper } from '@tresjs/cientos'
-import type Asset from '../sources'
+import type { Asset, TextureInfo, MeshInfo } from '../@types/types.ts'
+import { truthy, falsy } from '../@types/helpers'
 import sources from '../sources'
 import { ColorGUIHelper } from '../helpers'
 import GUI from 'lil-gui'
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
-import { truthy, falsy } from '../typeHelpers'
 import ls from 'localstorage-slim'
 import AES from 'crypto-js/aes'
 import encUTF8 from 'crypto-js/enc-utf8'
 
 ls.config.encrypt = true
 ls.config.secret = 'your-secret-key'
-ls.config.encrypter = (data, secret) => AES.encrypt(JSON.stringify(data), secret).toString()
-ls.config.decrypter = (data, secret) => JSON.parse(AES.decrypt(data, secret).toString(encUTF8))
+ls.config.encrypter = (data: unknown, secret: unknown) => {
+  if (typeof data === 'string' && typeof secret === 'string') {
+    return AES.encrypt(JSON.stringify(data), secret).toString()
+  } else {
+    throw new Error('Both data and secret must be strings')
+  }
+}
+ls.config.decrypter = (data: unknown, secret: unknown) => {
+  if (typeof data === 'string' && typeof secret === 'string') {
+    return JSON.parse(AES.decrypt(data, secret).toString(encUTF8))
+  } else {
+    throw new Error('Both data and secret must be strings')
+  }
+}
 
 const gl = reactive({
   clearColor: '#b9b9b4',
@@ -42,14 +59,14 @@ const gl = reactive({
 })
 
 const THREE_PATH = `https://unpkg.com/three@0.${REVISION}.x`
-const canvasRef: ShallowRef<TresInstance | null> = shallowRef(null)
+const canvasRef: ShallowRef<typeof TresCanvas | null> = shallowRef(null)
 const ambientLightRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 const directionalLightRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 const directionalLightRef2: ShallowRef<TresObject3D | null> = shallowRef(null)
-const transformControlsRef: ShallowRef<TresInstance | null> = shallowRef(null)
+const transformControlsRef: ShallowRef<typeof TransformControls | null> = shallowRef(null)
 const cameraRef: ShallowRef<TresCamera | null> = shallowRef(null)
 const groupRef: ShallowRef<TresObject3D | null> = shallowRef(null)
-const choosenMeshRef: ShallowRef<TresInstance | null> = shallowRef(null)
+const choosenMeshRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 
 let gui = null
 let positionFolder = null
@@ -57,7 +74,7 @@ let textureFolder = null
 let presetFolder = null
 let deleteMeshController = null
 let lightFolder = null
-let renderer: Renderer = null
+let renderer: Renderer | null = null
 
 const notChoosetext = 'Не выбрано'
 const { seek } = useSeek()
@@ -74,10 +91,10 @@ const controlValues = {
   }
 }
 
-let cameraControls: OrbitControls = null
+let cameraControls: OrbitControls | null = null
 let loadingStateNow = true
 
-const handleAddMesh = async (geometryName: string, textureInfo, position, rotation, scale): Promise<void> => {
+const handleAddMesh = async (geometryName: string, textureInfo: object, position: Vector3, rotation: Vector3, scale: Vector3): Promise<void> => {
   if (geometryName !== notChoosetext) {
     const modelFile = sources.find(
       (source) => source.type === 'model' && source.name === geometryName
@@ -102,7 +119,6 @@ const handleAddMesh = async (geometryName: string, textureInfo, position, rotati
     let meshName = downloadModel.scene.children[0].name
     meshName = `${meshName}|${geometryName}_inScene|${JSON.stringify(textureInfo)}`
     downloadModel.scene.name = `${meshName}|_inScene`
-    console.log(downloadModel.scene.children[0].geometry)
 
     if (truthy(groupRef.value)) {
       groupRef.value.children = [
@@ -116,13 +132,13 @@ const handleAddMesh = async (geometryName: string, textureInfo, position, rotati
       choosenMeshRef.value = addedMesh
 
       if (position != null) {
-        addedMesh?.position.set(position.x as number, position.y as number, position.z as number)
+        addedMesh?.position.set(position.x, position.y, position.z)
       }
       if (rotation != null) {
-        addedMesh?.rotation.set(rotation.x as number, rotation.y as number, rotation.z as number)
+        addedMesh?.rotation.set(rotation.x, rotation.y, rotation.z)
       }
       if (scale != null) {
-        addedMesh?.scale.set(scale.x as number, scale.y as number, scale.z as number)
+        addedMesh?.scale.set(scale.x, scale.y, scale.z)
       }
 
       saveAttachedMeshState(addedMesh?.uuid)
@@ -136,8 +152,11 @@ const handleAddMesh = async (geometryName: string, textureInfo, position, rotati
 }
 
 const handleApplyTexture = async (textureSubtypeName: string, materialParams: object): Promise<void> => {
-  const modelMaterial = choosenMeshRef.value.material
-  const newMaterial = new modelMaterial.constructor()
+  const modelMaterial = choosenMeshRef.value?.material
+  let newMaterial = null
+  if (truthy(modelMaterial)) {
+    newMaterial = new modelMaterial.constructor()
+  }
   const finalTexture = {
     map: null,
     roughnessMap: null,
@@ -146,9 +165,9 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
     sheenRoughnessMap: null
   }
   if (textureSubtypeName !== notChoosetext) {
-    const applyTexture = (texture, subtype): void => {
+    const applyTexture = (texture: Texture, subtype?: string): void => {
       const downloadedTexture = texture
-      if (falsy(downloadedTexture.isCompressedTexture)) {
+      if (falsy(downloadedTexture instanceof CompressedTexture)) {
         if (downloadedTexture.map != null) {
           finalTexture.map = downloadedTexture.map
         }
@@ -184,7 +203,7 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
       }
     }
 
-    const getTexture = (textureSubtypeName): Asset | null => {
+    const getTexture = (textureSubtypeName: string): Asset | null => {
       if (textureSubtypeName !== notChoosetext) {
         return sources.find(
           (source) => source.type === 'texture' && source.name === textureSubtypeName
@@ -201,8 +220,8 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
       return
     }
     let downloadTexture = null
-    const meshNameArr = choosenMeshRef.value.parent.name.split('|')
-    const textureInfo: object = JSON.parse(meshNameArr[2] as string)
+    const meshNameArr = choosenMeshRef.value?.parent?.name.split('|')
+    const textureInfo: TextureInfo = JSON.parse(meshNameArr[2])
 
     const albedoTexture = {
       path: getTexture(textureInfo.albedo) !== null ? getTexture(textureInfo.albedo)?.path : null,
@@ -232,7 +251,7 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
       metalnessMap: falsy(metalnessTexture.path?.endsWith('.ktx2')) ? metalnessTexture?.path : null,
       normalMap: falsy(normalTexture.path?.endsWith('.ktx2')) ? normalTexture?.path : null
     }
-    if (falsy(texture?.path.endsWith('.ktx2'))) {
+    if (falsy(texture?.path?.endsWith('.ktx2'))) {
       const textureSubtype = getTexture(textureSubtypeName)?.subtype
       switch (textureSubtype) {
         case 'albedo':
@@ -256,24 +275,24 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams: ob
     if (!Object.values(downloadTextureOptions).every(val => val === null)) {
       applyTexture(downloadTexture)
     }
-    if (sheenTexture?.path !== null) {
+    if (truthy(sheenTexture?.path) && truthy(sheenTexture?.subtype)) {
       const sheenLoader = new TextureLoader()
-      const texture = await sheenLoader.loadAsync(sheenTexture?.path as string)
+      const texture = await sheenLoader.loadAsync(sheenTexture?.path)
       applyTexture(texture, sheenTexture?.subtype)
     }
     const ktx2Loader = new KTX2Loader()
       .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
-      .detectSupport(canvasRef.value.context.renderer.value)
-    const loadKTXTexture = async (texturePath, textureSubtype): Promise<void> => {
+      .detectSupport(canvasRef.value?.context.renderer.value)
+    const loadKTXTexture = async (texturePath: string, textureSubtype: string): Promise<void> => {
       try {
-        const texture = await ktx2Loader.loadAsync(texturePath)
+        const texture: CompressedTexture = await ktx2Loader.loadAsync(texturePath)
         texture.minFilter = NearestMipmapNearestFilter
         applyTexture(texture, textureSubtype)
       } catch (e) {
         console.error(e)
       }
     }
-    if (truthy(texture?.path?.endsWith('.ktx2'))) {
+    if (truthy(texture?.subtype) && truthy(texture?.path?.endsWith('.ktx2'))) {
       await loadKTXTexture(texture?.path, texture?.subtype)
     }
     if (truthy(albedoTexture?.path?.endsWith('.ktx2'))) {
@@ -354,8 +373,8 @@ const handleDeleteMesh = (): void => {
 
   if (truthy(choosenMeshRef.value)) {
     const rootMeshGroup = choosenMeshRef.value.parent
-    const target = rootMeshGroup.uuid
-    removeByKey(groupRef.value.children, 'uuid', target)
+    const target = rootMeshGroup?.uuid
+    removeByKey(groupRef.value?.children, 'uuid', target)
     choosenMeshRef.value.traverse((child) => {
       if (child instanceof Mesh) {
         if (truthy(child.geometry)) {
@@ -383,19 +402,19 @@ const handleDeleteMesh = (): void => {
 
 const loadRootGroupState = async (): void => {
   console.log('loadGroupState')
-  const rootGroupState = ls.get('rootGroupState', { decrypt: true })
+  const rootGroupState: unknown = ls.get('rootGroupState', { decrypt: true })
   if (truthy(rootGroupState)) {
     if (truthy(groupRef.value)) {
-      await rootGroupState.reduce(async (previousPromise, item) => {
+      await rootGroupState.reduce(async (previousPromise: Promise<void>, item: MeshInfo) => {
         await previousPromise
         await handleAddMesh(
-          item.geometryName as string,
-          item.textureInfo as object,
-          item.position as object,
-          item.rotation as object,
-          item.scale as object
+          item.geometryName,
+          item.textureInfo,
+          item.position,
+          item.rotation,
+          item.scale
         ).then(async () => {
-          const texturePromises: Array<Promise<void>> = Object.values(item.textureInfo as object).map(async textureSubtypeName => {
+          const texturePromises: Array<Promise<void>> = Object.values(item.textureInfo).map(async textureSubtypeName => {
             await handleApplyTexture(textureSubtypeName as string, item.materialParams as object)
           })
           return await Promise.all(texturePromises)
@@ -415,43 +434,29 @@ const loadRootGroupState = async (): void => {
 const saveRootGroupState = (): void => {
   if (!loadingStateNow) {
     console.log('SaveRootGroupState')
-    let meshes = []
-    groupRef.value.children.forEach(rootGroup => {
+    let meshes: MeshInfo[] = []
+    groupRef.value?.children.forEach(rootGroup => {
       const meshNameArr = rootGroup.name.split('|')
       const geometryName = meshNameArr[1].split('_')[0]
-      const textureInfo = JSON.parse(meshNameArr[2])
-      const rootMeshInGroup = rootGroup.children[0]
+      const textureInfo: TextureInfo = JSON.parse(meshNameArr[2])
+      const rootMeshInGroup: Mesh = rootGroup.children[0]
       const materialParams = {
-        color: rootMeshInGroup.material.color,
-        roughness: rootMeshInGroup.material.roughness,
-        metalness: rootMeshInGroup.material.metalness,
-        reflectivity: rootMeshInGroup.material.reflectivity,
-        ior: rootMeshInGroup.material.ior,
-        iridescence: rootMeshInGroup.material.iridescence,
-        iridescenceIOR: rootMeshInGroup.material.iridescenceIOR,
-        envMapIntensity: rootMeshInGroup.material.envMapIntensity,
-        sheen: rootMeshInGroup.material.sheen,
-        sheenRoughness: rootMeshInGroup.material.sheenRoughness,
-        sheenColor: rootMeshInGroup.material.sheenColor,
-        specularIntensity: rootMeshInGroup.material.specularIntensity,
-        specularColor: rootMeshInGroup.material.specularColor
+        color: rootMeshInGroup.material instanceof MeshBasicMaterial ? rootMeshInGroup.material.color : undefined,
+        roughness: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.roughness : undefined,
+        metalness: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.metalness : undefined,
+        reflectivity: rootMeshInGroup.material instanceof MeshPhongMaterial ? rootMeshInGroup.material.reflectivity : undefined,
+        ior: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.ior : undefined,
+        iridescence: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.iridescence : undefined,
+        iridescenceIOR: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.iridescenceIOR : undefined,
+        envMapIntensity: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.envMapIntensity : undefined,
+        sheen: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheen : undefined,
+        sheenRoughness: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheenRoughness : undefined,
+        sheenColor: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheenColor : undefined
       }
-      const meshInfo = {
-        position: {
-          x: rootMeshInGroup.position.x,
-          y: rootMeshInGroup.position.y,
-          z: rootMeshInGroup.position.z
-        },
-        rotation: {
-          x: rootMeshInGroup.rotation.x,
-          y: rootMeshInGroup.rotation.y,
-          z: rootMeshInGroup.rotation.z
-        },
-        scale: {
-          x: rootMeshInGroup.scale.x,
-          y: rootMeshInGroup.scale.y,
-          z: rootMeshInGroup.scale.z
-        },
+      const meshInfo: MeshInfo = {
+        position: rootMeshInGroup.position,
+        rotation: rootMeshInGroup.rotation,
+        scale: rootMeshInGroup.scale,
         geometryName,
         textureInfo,
         materialParams
@@ -516,7 +521,7 @@ const attachControlPanels = (): void => {
       )
         .onChange(event => {
           const meshNameArr = choosenMeshRef.value.parent.name.split('|')
-          const textureInfo = JSON.parse(meshNameArr[2] as string)
+          const textureInfo = JSON.parse(meshNameArr[2])
           console.log(subtype)
           textureInfo[subtype] = event
           choosenMeshRef.value.parent.name = [
@@ -535,7 +540,7 @@ const attachControlPanels = (): void => {
     textureFolder.show()
     textureFolder.controllers.forEach(controller => {
       const meshNameArr = choosenMeshRef.value.parent.name.split('|')
-      const textureInfo = JSON.parse(meshNameArr[2] as string)
+      const textureInfo = JSON.parse(meshNameArr[2])
       controller.object = textureInfo
     })
   }
@@ -856,4 +861,4 @@ onUnmounted(() => {
     </TresGroup>
     </Suspense>
   </TresCanvas>
-</template>
+</template>../@types/types.js

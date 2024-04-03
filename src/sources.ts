@@ -1,9 +1,4 @@
-interface Asset {
-  name: string
-  type: string
-  path: string
-  subtype?: string
-}
+import type { Asset } from './@types/types'
 
 export default [
   {
