@@ -1,6 +1,7 @@
 <script setup lang='ts'>
 import type { PBRUseTextureMap, TresObject3D } from '@tresjs/core'
 import { TresCanvas, useTexture, useRenderLoop, useSeek } from '@tresjs/core'
+
 import type { ShallowRef } from 'vue'
 import { watch, reactive, shallowRef, shallowReactive, onMounted, onUnmounted } from 'vue'
 import {
@@ -22,7 +23,7 @@ import {
 import type { Camera, Object3D, Material, WebGLRenderer, Light, DirectionalLight, AmbientLight, Euler } from 'three'
 
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { TransformControls, Stats, vLog, useGLTF, vLightHelper } from '@tresjs/cientos'
+import { TransformControls, vLog, useGLTF, vLightHelper } from '@tresjs/cientos'
 import type { Asset, TextureMapInfo, TextureInfo, MeshInfo, MaterialParams } from '../@types/types'
 import { truthy, falsy } from '../@types/helpers'
 import sources from '../sources'
@@ -915,7 +916,6 @@ onUnmounted(() => {
 
 <template>
   <TresCanvas ref='canvasRef' v-bind='gl' shadows preset='realistic'>
-    <Stats class='stats' />
     <TresPerspectiveCamera
       ref='cameraRef'
     />
@@ -952,9 +952,3 @@ onUnmounted(() => {
     </Suspense>
   </TresCanvas>
 </template>
-<style>
-  .stats {
-    left: 1.5rem;
-    top: 1.5rem;
-  }
-</style>
