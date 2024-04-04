@@ -1,4 +1,4 @@
-import type { Vector3, Color, Texture } from 'three'
+import type { Vector3, Color, Texture, CompressedTexture } from 'three'
 export interface Asset {
   name: string
   type: string
@@ -7,11 +7,11 @@ export interface Asset {
 }
 
 export interface TextureMapInfo {
-  map: Texture | null
-  roughnessMap: Texture | null
-  metalnessMap: Texture | null
-  normalMap: Texture | null
-  sheenRoughnessMap: Texture | null
+  map: Texture | CompressedTexture | null
+  roughnessMap: Texture | CompressedTexture | null
+  metalnessMap: Texture | CompressedTexture | null
+  normalMap: Texture | CompressedTexture | null
+  sheenRoughnessMap: Texture | CompressedTexture | null
 }
 
 export interface TextureInfo {

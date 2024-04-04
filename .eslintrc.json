@@ -14,7 +14,12 @@
         "ecmaVersion": "latest",
         "sourceType": "module",
         "project": "./tsconfig.json",
-        "extraFileExtensions": [".vue"]
+        "extraFileExtensions": [".vue"],
+        "babelOptions": {
+            "parserOpts": {
+                "plugins": ["optionalChainingAssign"]
+            }
+        }
     },
     "plugins": [
         "vue"

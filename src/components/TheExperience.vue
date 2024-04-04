@@ -3,9 +3,9 @@ import type { TresObject3D } from '@tresjs/core'
 import { TresCanvas, useTexture, useRenderLoop, useSeek } from '@tresjs/core'
 import type { ShallowRef } from 'vue'
 import { watch, reactive, shallowRef, shallowReactive, onMounted, onUnmounted } from 'vue'
-import type { Camera, Object3D, Texture, Renderer, Material, Light, DirectionalLight, AmbientLight } from 'three'
+import type { Camera, Object3D, Material, WebGLRenderer, Light, DirectionalLight, AmbientLight } from 'three'
 import {
-  Mesh, CubeTextureLoader, Group,
+  Mesh, CubeTextureLoader, Group, Texture,
   Raycaster, Vector2, Vector3, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader,
   BasicShadowMap, SRGBColorSpace, REVISION,
   NoToneMapping,
@@ -22,13 +22,13 @@ import {
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TransformControls, Stats, vLog, useGLTF, vLightHelper } from '@tresjs/cientos'
-import type { Asset, TextureMapInfo, TextureInfo, MeshInfo, MaterialParams } from '../@types/types.ts'
+import type { Asset, TextureMapInfo, TextureInfo, MeshInfo, MaterialParams } from '../@types/types'
 import { truthy, falsy } from '../@types/helpers'
 import sources from '../sources'
 import { ColorGUIHelper } from '../helpers'
 import type Controller from 'lil-gui'
 import GUI from 'lil-gui'
-import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
 import ls from 'localstorage-slim'
 import AES from 'crypto-js/aes'
 import encUTF8 from 'crypto-js/enc-utf8'
@@ -67,7 +67,7 @@ const directionalLightRef2: ShallowRef<DirectionalLight | null> = shallowRef(nul
 const transformControlsRef: ShallowRef<typeof TransformControls | null> = shallowRef(null)
 const cameraRef: ShallowRef<Camera | null> = shallowRef(null)
 const groupRef: ShallowRef<TresObject3D | null> = shallowRef(null)
-const choosenMeshRef: ShallowRef<Mesh | null> = shallowRef(null)
+const choosenMeshRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 
 let gui: GUI | null = null
 let positionFolder: GUI | null = null
@@ -75,7 +75,7 @@ let textureFolder: GUI | null = null
 let presetFolder: GUI | null = null
 let deleteMeshController: Controller | null = null
 let lightFolder: GUI | null = null
-let renderer: Renderer | null = null
+let renderer: WebGLRenderer | null = null
 
 const notChoosetext = 'Не выбрано'
 const { seek } = useSeek()
@@ -104,9 +104,7 @@ const handleAddMesh = async (geometryName: string, textureInfo?: object, positio
       console.error('Model file not found')
       return
     }
-    const downloadModel = await useGLTF(modelFile, {
-      binary: true
-    })
+    const downloadModel = await useGLTF(modelFile)
     const startTextureInfo = {
       albedo: notChoosetext,
       roughness: notChoosetext,
@@ -128,7 +126,7 @@ const handleAddMesh = async (geometryName: string, textureInfo?: object, positio
       ]
       console.log(groupRef.value.children)
       saveRootGroupState()
-      const addedMesh = seek(groupRef.value, 'uuid', downloadModel.scene.children[0].uuid)
+      const addedMesh = seek(groupRef.value, 'uuid', downloadModel.scene.children[0].uuid) as TresObject3D
       console.log('attached in add')
       choosenMeshRef.value = addedMesh
 
@@ -156,7 +154,7 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams?: o
   const modelMaterial = choosenMeshRef.value?.material
   let newMaterial: Material | null = null
   if (truthy(modelMaterial)) {
-    newMaterial = new modelMaterial.constructor()
+    newMaterial = new MeshPhysicalMaterial()
   }
   const finalTextureMapsInfo: TextureMapInfo = {
     map: null,
@@ -166,7 +164,7 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams?: o
     sheenRoughnessMap: null
   }
   if (textureSubtypeName !== notChoosetext) {
-    const applyTexture = (texture: Texture | CompressedTexture, subtype?: string): void => {
+    const applyTexture = (texture: TextureMapInfo | CompressedTexture | Texture, subtype?: string): void => {
       const downloadedTexture = texture
       if (falsy(downloadedTexture instanceof CompressedTexture)) {
         if ('map' in downloadedTexture && downloadedTexture.map != null) {
@@ -181,10 +179,10 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams?: o
         if ('normalMap' in downloadedTexture && downloadedTexture.normalMap != null) {
           finalTextureMapsInfo.normalMap = downloadedTexture.normalMap
         }
-        if (subtype === 'sheen') {
+        if (downloadedTexture instanceof Texture && subtype === 'sheen') {
           finalTextureMapsInfo.sheenRoughnessMap = downloadedTexture
         }
-      } else {
+      } else if (downloadedTexture instanceof CompressedTexture) {
         switch (subtype) {
           case 'albedo':
             finalTextureMapsInfo.map = downloadedTexture
@@ -288,7 +286,7 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams?: o
     }
     const ktx2Loader = new KTX2Loader()
       .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
-      .detectSupport(canvasRef.value?.context.renderer.value)
+      .detectSupport(renderer)
     const loadKTXTexture = async (texturePath: string, textureSubtype: string): Promise<void> => {
       try {
         const texture: CompressedTexture = await ktx2Loader.loadAsync(texturePath)
@@ -536,11 +534,13 @@ const attachControlPanels = (): void => {
               const textureInfo = JSON.parse(meshNameArr[2])
               console.log(subtype)
               textureInfo[subtype] = event
-              choosenMeshRef.value.parent?.name = [
-                meshNameArr[0],
-                meshNameArr[1],
-                JSON.stringify(textureInfo),
-                meshNameArr[3]].join('|')
+              if (truthy(choosenMeshRef.value) && truthy(choosenMeshRef.value.parent)) {
+                choosenMeshRef.value.parent.name = [
+                  meshNameArr[0],
+                  meshNameArr[1],
+                  JSON.stringify(textureInfo),
+                  meshNameArr[3]].join('|')
+              }
             }
             void handleApplyTexture(event)
           })
@@ -591,9 +591,9 @@ const attachControlPanels = (): void => {
       parameters[prop] = true
       switch (prop) {
         case 'isLeather':
-          canvasRef.value?.context.renderer.value.toneMappingExposure = 1.447
-          canvasRef.value?.context.renderer.value.toneMapping = LinearToneMapping
-          if (truthy(choosenMeshRef.value)) {
+          canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+          canvasRef.value.context.renderer.value.toneMapping = LinearToneMapping
+          if (truthy(choosenMeshRef.value) && truthy(choosenMeshRef.value.material)) {
             choosenMeshRef.value.material.color = new Color('#ffffff')
             choosenMeshRef.value.material.roughness = 1
             choosenMeshRef.value.material.metalness = 1
@@ -879,6 +879,7 @@ onUnmounted(() => {
   document.removeEventListener('mousedown', handleMouseDown, false)
   document.removeEventListener('mouseup', saveRootGroupState, false)
 })
+
 </script>
 
 <template>
@@ -892,8 +893,8 @@ onUnmounted(() => {
     v-if='choosenMeshRef'
     :object='choosenMeshRef'
     v-bind='transformState'
-    @mouse-down='() => { cameraControls?.enabled = false }'
-    @mouse-up='() => { cameraControls?.enabled = true }'
+    @mouse-down='() => { if(truthy(cameraControls)) { cameraControls.enabled = false } }'
+    @mouse-up='() => { if(truthy(cameraControls)) { cameraControls.enabled = true } }'
     />
     <TresAmbientLight ref='ambientLightRef' :intensity="1" />
    <TresDirectionalLight
