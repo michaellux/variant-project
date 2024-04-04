@@ -66,7 +66,7 @@ const directionalLightRef: ShallowRef<DirectionalLight | null> = shallowRef(null
 const directionalLightRef2: ShallowRef<DirectionalLight | null> = shallowRef(null)
 const transformControlsRef: ShallowRef<typeof TransformControls | null> = shallowRef(null)
 const cameraRef: ShallowRef<Camera | null> = shallowRef(null)
-const groupRef: ShallowRef<TresObject3D | null> = shallowRef(null)
+const groupRef: ShallowRef<Object3D<Event> | null> = shallowRef(null)
 const choosenMeshRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 
 let gui: GUI | null = null
@@ -89,7 +89,8 @@ const controlValues = {
   mesh: notChoosetext,
   addMesh: async function () {
     await handleAddMesh(this.mesh)
-  }
+  },
+  removeMesh: () => {}
 }
 
 let cameraControls: OrbitControls | null = null
@@ -284,33 +285,37 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams?: o
       const texture = await sheenLoader.loadAsync(sheenTexture?.path)
       applyTexture(texture, sheenTexture?.subtype)
     }
-    const ktx2Loader = new KTX2Loader()
-      .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
-      .detectSupport(renderer)
-    const loadKTXTexture = async (texturePath: string, textureSubtype: string): Promise<void> => {
-      try {
-        const texture: CompressedTexture = await ktx2Loader.loadAsync(texturePath)
-        texture.minFilter = NearestMipmapNearestFilter
-        applyTexture(texture, textureSubtype)
-      } catch (e) {
-        console.error(e)
+
+    if (truthy(renderer)) {
+      const ktx2Loader = new KTX2Loader()
+        .setTranscoderPath(`${THREE_PATH}/examples/jsm/libs/basis/`)
+        .detectSupport(renderer)
+      const loadKTXTexture = async (texturePath: string, textureSubtype: string): Promise<void> => {
+        try {
+          const texture: CompressedTexture = await ktx2Loader.loadAsync(texturePath)
+          texture.minFilter = NearestMipmapNearestFilter
+          applyTexture(texture, textureSubtype)
+        } catch (e) {
+          console.error(e)
+        }
+      }
+      if (truthy(texture?.subtype) && truthy(texture?.path?.endsWith('.ktx2'))) {
+        await loadKTXTexture(texture?.path, texture?.subtype)
+      }
+      if (truthy(albedoTexture?.subtype) && truthy(albedoTexture?.path?.endsWith('.ktx2'))) {
+        await loadKTXTexture(albedoTexture?.path, albedoTexture?.subtype)
+      }
+      if (truthy(roughnessTexture?.subtype) && truthy(roughnessTexture?.path?.endsWith('.ktx2'))) {
+        await loadKTXTexture(roughnessTexture?.path, roughnessTexture?.subtype)
+      }
+      if (truthy(metalnessTexture?.subtype) && truthy(metalnessTexture?.path?.endsWith('.ktx2'))) {
+        await loadKTXTexture(metalnessTexture?.path, metalnessTexture?.subtype)
+      }
+      if (truthy(normalTexture?.subtype) && truthy(normalTexture?.path?.endsWith('.ktx2'))) {
+        await loadKTXTexture(normalTexture?.path, normalTexture?.subtype)
       }
     }
-    if (truthy(texture?.subtype) && truthy(texture?.path?.endsWith('.ktx2'))) {
-      await loadKTXTexture(texture?.path, texture?.subtype)
-    }
-    if (truthy(albedoTexture?.subtype) && truthy(albedoTexture?.path?.endsWith('.ktx2'))) {
-      await loadKTXTexture(albedoTexture?.path, albedoTexture?.subtype)
-    }
-    if (truthy(roughnessTexture?.subtype) && truthy(roughnessTexture?.path?.endsWith('.ktx2'))) {
-      await loadKTXTexture(roughnessTexture?.path, roughnessTexture?.subtype)
-    }
-    if (truthy(metalnessTexture?.subtype) && truthy(metalnessTexture?.path?.endsWith('.ktx2'))) {
-      await loadKTXTexture(metalnessTexture?.path, metalnessTexture?.subtype)
-    }
-    if (truthy(normalTexture?.subtype) && truthy(normalTexture?.path?.endsWith('.ktx2'))) {
-      await loadKTXTexture(normalTexture?.path, normalTexture?.subtype)
-    }
+
     choosenMeshRef.value?.traverse((child) => {
       if (child instanceof Mesh) {
         child.material = newMaterial
@@ -376,9 +381,11 @@ const handleDeleteMesh = (): void => {
   }
 
   if (truthy(choosenMeshRef.value)) {
-    const rootMeshGroup = choosenMeshRef.value.parent
+    let rootMeshGroup = choosenMeshRef.value.parent
     const target = rootMeshGroup?.uuid
-    removeByKey(groupRef.value?.children, 'uuid', target)
+    if (truthy(groupRef.value?.children)) {
+      removeByKey(groupRef.value?.children as [], 'uuid', target)
+    }
     choosenMeshRef.value.traverse((child) => {
       if (child instanceof Mesh) {
         if (truthy(child.geometry)) {
@@ -394,7 +401,7 @@ const handleDeleteMesh = (): void => {
       }
     })
     choosenMeshRef.value = null
-    rootMeshGroup.value = null
+    rootMeshGroup = null
 
     positionFolder?.hide()
     textureFolder?.hide()
@@ -443,7 +450,7 @@ const saveRootGroupState = (): void => {
       const meshNameArr = rootGroup.name.split('|')
       const geometryName = meshNameArr[1].split('_')[0]
       const textureInfo: TextureInfo = JSON.parse(meshNameArr[2])
-      const rootMeshInGroup: Mesh = rootGroup.children[0]
+      const rootMeshInGroup: TresObject3D = rootGroup.children[0] as TresObject3D
       const materialParams: MaterialParams = {
         color: rootMeshInGroup.material instanceof MeshBasicMaterial ? rootMeshInGroup.material.color : null,
         roughness: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.roughness : null,
@@ -485,16 +492,16 @@ const saveCameraState = (): void => {
   localStorage.setItem('controls.target.z', (cameraControls?.target.z ?? '0').toString())
 }
 
-const saveAttachedMeshState = (uuid): void => {
-  localStorage.setItem('attachedMeshState', uuid as string)
+const saveAttachedMeshState = (uuid: string): void => {
+  localStorage.setItem('attachedMeshState', uuid)
 }
 
 const loadAttachedMeshState = (): void => {
   console.log('loadAttached')
   const loadedMeshState = localStorage.getItem('attachedMeshState')
-  if (truthy(loadedMeshState)) {
+  if (truthy(loadedMeshState) && truthy(groupRef.value)) {
     const targetMesh = seek(groupRef.value, 'uuid', loadedMeshState)
-    choosenMeshRef.value = targetMesh
+    choosenMeshRef.value = targetMesh as TresObject3D
   }
 }
 
@@ -502,7 +509,7 @@ const raycaster = new Raycaster()
 const mouse = new Vector2()
 
 const attachControlPanels = (): void => {
-  if (falsy(positionFolder) && truthy(choosenMeshRef.value)) {
+  if (truthy(gui) && falsy(positionFolder) && truthy(choosenMeshRef.value)) {
     positionFolder = gui.addFolder('Position')
     positionFolder.add(choosenMeshRef.value?.position, 'x').min(-10).max(10).step(0.01).listen()
     positionFolder.add(choosenMeshRef.value?.position, 'y').min(-10).max(10).step(0.01).listen()
@@ -510,7 +517,7 @@ const attachControlPanels = (): void => {
   } else {
     positionFolder?.show()
   }
-  if (falsy(textureFolder)) {
+  if (truthy(gui) && falsy(textureFolder)) {
     textureFolder = gui?.addFolder('Textures')
     const textures = sources.filter((source) => source.type === 'texture')
     const textureSubTypeNames = new Set(textures.map((texture) => texture.subtype))
@@ -548,18 +555,22 @@ const attachControlPanels = (): void => {
       }
     })
   } else {
-    positionFolder.controllers.forEach(controller => {
-      controller.object = choosenMeshRef.value?.position
+    positionFolder?.controllers.forEach(controller => {
+      if (truthy(choosenMeshRef.value?.position)) {
+        controller.object = choosenMeshRef.value?.position
+      }
     })
-    textureFolder.show()
-    textureFolder.controllers.forEach(controller => {
+    textureFolder?.show()
+    textureFolder?.controllers.forEach(controller => {
       const meshNameArr = choosenMeshRef.value?.parent?.name.split('|')
-      const textureInfo = JSON.parse(meshNameArr[2])
-      controller.object = textureInfo
+      if (truthy(meshNameArr)) {
+        const textureInfo = JSON.parse(meshNameArr[2])
+        controller.object = textureInfo
+      }
     })
   }
   if (falsy(deleteMeshController) && truthy(gui)) {
-    controlValues.removeMesh = function () {
+    controlValues.removeMesh = (): void => {
       handleDeleteMesh()
     }
     deleteMeshController = gui?.add(controlValues, 'removeMesh').name('Delete')
@@ -591,9 +602,11 @@ const attachControlPanels = (): void => {
       parameters[prop] = true
       switch (prop) {
         case 'isLeather':
-          canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
-          canvasRef.value.context.renderer.value.toneMapping = LinearToneMapping
-          if (truthy(choosenMeshRef.value) && truthy(choosenMeshRef.value.material)) {
+          if (truthy(canvasRef.value)) {
+            canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+            canvasRef.value.context.renderer.value.toneMapping = LinearToneMapping
+          }
+          if (truthy(choosenMeshRef.value?.material)) {
             choosenMeshRef.value.material.color = new Color('#ffffff')
             choosenMeshRef.value.material.roughness = 1
             choosenMeshRef.value.material.metalness = 1
@@ -620,22 +633,26 @@ const attachControlPanels = (): void => {
           }
           break
         case 'isMetal':
-          canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
-          canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
-          choosenMeshRef.value.material.color = new Color('#ffffff')
-          choosenMeshRef.value.material.roughness = 1
-          choosenMeshRef.value.material.metalness = 1
-          choosenMeshRef.value.material.reflectivity = 0
-          choosenMeshRef.value.material.ior = 0
-          choosenMeshRef.value.material.iridescence = 0
-          choosenMeshRef.value.material.iridescenceIOR = 0
-          choosenMeshRef.value.material.sheen = 0
-          choosenMeshRef.value.material.sheenRoughness = 0
-          choosenMeshRef.value.material.sheenColor = new Color('#ffffff')
-          choosenMeshRef.value.material.specularIntensity = 0.5
-          choosenMeshRef.value.material.specularColor = new Color('#ffffff')
-          choosenMeshRef.value.material.envMapIntensity = 1
-          choosenMeshRef.value.material.needsUpdate = true
+          if (truthy(canvasRef.value)) {
+            canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+            canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
+          }
+          if (truthy(choosenMeshRef.value?.material)) {
+            choosenMeshRef.value.material.color = new Color('#ffffff')
+            choosenMeshRef.value.material.roughness = 1
+            choosenMeshRef.value.material.metalness = 1
+            choosenMeshRef.value.material.reflectivity = 0
+            choosenMeshRef.value.material.ior = 0
+            choosenMeshRef.value.material.iridescence = 0
+            choosenMeshRef.value.material.iridescenceIOR = 0
+            choosenMeshRef.value.material.sheen = 0
+            choosenMeshRef.value.material.sheenRoughness = 0
+            choosenMeshRef.value.material.sheenColor = new Color('#ffffff')
+            choosenMeshRef.value.material.specularIntensity = 0.5
+            choosenMeshRef.value.material.specularColor = new Color('#ffffff')
+            choosenMeshRef.value.material.envMapIntensity = 1
+            choosenMeshRef.value.material.needsUpdate = true
+          }
           if (truthy(directionalLightRef.value)) {
             setLight(directionalLightRef.value, 0, '#ffffff', new Vector3(0, 0, 0))
           }
@@ -647,22 +664,26 @@ const attachControlPanels = (): void => {
           }
           break
         case 'isVelours':
-          canvasRef.value.context.renderer.value.toneMappingExposure = 3
-          canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
-          choosenMeshRef.value.material.color = new Color('#715656')
-          choosenMeshRef.value.material.roughness = 0.57
-          choosenMeshRef.value.material.metalness = 0.2
-          choosenMeshRef.value.material.reflectivity = 0
-          choosenMeshRef.value.material.ior = 0
-          choosenMeshRef.value.material.iridescence = 0
-          choosenMeshRef.value.material.iridescenceIOR = 0
-          choosenMeshRef.value.material.sheen = 0.52
-          choosenMeshRef.value.material.sheenRoughness = 0.45
-          choosenMeshRef.value.material.sheenColor = new Color('#500202')
-          choosenMeshRef.value.material.specularIntensity = 0.5
-          choosenMeshRef.value.material.specularColor = new Color('#ffffff')
-          choosenMeshRef.value.material.envMapIntensity = 0
-          choosenMeshRef.value.material.needsUpdate = true
+          if (truthy(canvasRef.value)) {
+            canvasRef.value.context.renderer.value.toneMappingExposure = 3
+            canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
+          }
+          if (truthy(choosenMeshRef.value?.material)) {
+            choosenMeshRef.value.material.color = new Color('#715656')
+            choosenMeshRef.value.material.roughness = 0.57
+            choosenMeshRef.value.material.metalness = 0.2
+            choosenMeshRef.value.material.reflectivity = 0
+            choosenMeshRef.value.material.ior = 0
+            choosenMeshRef.value.material.iridescence = 0
+            choosenMeshRef.value.material.iridescenceIOR = 0
+            choosenMeshRef.value.material.sheen = 0.52
+            choosenMeshRef.value.material.sheenRoughness = 0.45
+            choosenMeshRef.value.material.sheenColor = new Color('#500202')
+            choosenMeshRef.value.material.specularIntensity = 0.5
+            choosenMeshRef.value.material.specularColor = new Color('#ffffff')
+            choosenMeshRef.value.material.envMapIntensity = 0
+            choosenMeshRef.value.material.needsUpdate = true
+          }
           if (truthy(directionalLightRef.value)) {
             setLight(directionalLightRef.value, 2.367, '#ffffff', new Vector3(-0.94, 1.1, 1.6))
           }
@@ -674,22 +695,26 @@ const attachControlPanels = (): void => {
           }
           break
         case 'isWood':
-          canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
-          canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
-          choosenMeshRef.value.material.color = new Color('#ffffff')
-          choosenMeshRef.value.material.roughness = 1
-          choosenMeshRef.value.material.metalness = 0
-          choosenMeshRef.value.material.ior = 1.45
-          choosenMeshRef.value.material.reflectivity = 1
-          choosenMeshRef.value.material.iridescence = 0.2
-          choosenMeshRef.value.material.iridescenceIOR = 0.08
-          choosenMeshRef.value.material.sheen = 0
-          choosenMeshRef.value.material.sheenRoughness = 0
-          choosenMeshRef.value.material.sheenColor = new Color('#ffffff')
-          choosenMeshRef.value.material.specularIntensity = 0.5
-          choosenMeshRef.value.material.specularColor = new Color('#ffffff')
-          choosenMeshRef.value.material.envMapIntensity = 0.35
-          choosenMeshRef.value.material.needsUpdate = true
+          if (truthy(canvasRef.value)) {
+            canvasRef.value.context.renderer.value.toneMappingExposure = 1.447
+            canvasRef.value.context.renderer.value.toneMapping = ACESFilmicToneMapping
+          }
+          if (truthy(choosenMeshRef.value?.material)) {
+            choosenMeshRef.value.material.color = new Color('#ffffff')
+            choosenMeshRef.value.material.roughness = 1
+            choosenMeshRef.value.material.metalness = 0
+            choosenMeshRef.value.material.ior = 1.45
+            choosenMeshRef.value.material.reflectivity = 1
+            choosenMeshRef.value.material.iridescence = 0.2
+            choosenMeshRef.value.material.iridescenceIOR = 0.08
+            choosenMeshRef.value.material.sheen = 0
+            choosenMeshRef.value.material.sheenRoughness = 0
+            choosenMeshRef.value.material.sheenColor = new Color('#ffffff')
+            choosenMeshRef.value.material.specularIntensity = 0.5
+            choosenMeshRef.value.material.specularColor = new Color('#ffffff')
+            choosenMeshRef.value.material.envMapIntensity = 0.35
+            choosenMeshRef.value.material.needsUpdate = true
+          }
           if (truthy(directionalLightRef.value)) {
             setLight(directionalLightRef.value, 2.367, '#bb966e', new Vector3(-0.94, 1.1, 1.6))
           }
@@ -706,7 +731,7 @@ const attachControlPanels = (): void => {
     }
   }
 
-  if (falsy(lightFolder)) {
+  if (truthy(gui) && falsy(lightFolder)) {
     lightFolder = gui.addFolder('Light')
     if (truthy(directionalLightRef.value)) {
       lightFolder.add(directionalLightRef.value, 'intensity').min(0).max(10).step(0.001).name('intensity').listen()
@@ -737,9 +762,11 @@ const attachControlPanels = (): void => {
     'textures/environment/0/pz.jpg',
     'textures/environment/0/nz.jpg'
   ])
-  const scene = canvasRef.value.context.scene.value
+  const scene = canvasRef.value?.context.scene.value
   scene.environment = environmentMap
-  choosenMeshRef.value.material.envMap = environmentMap
+  if (truthy(choosenMeshRef.value?.material)) {
+    choosenMeshRef.value.material.envMap = environmentMap
+  }
 }
 
 const handleMouseDown = (event): void => {
@@ -776,7 +803,7 @@ const handleMouseDown = (event): void => {
       if (rootGroupOfMesh !== null) {
         const choosenMesh = rootGroupOfMesh.children[0]
         console.log('choosenMesh', choosenMesh)
-        choosenMeshRef.value = choosenMesh
+        choosenMeshRef.value = choosenMesh as TresObject3D
         saveAttachedMeshState(choosenMesh.uuid)
         attachControlPanels()
       }
