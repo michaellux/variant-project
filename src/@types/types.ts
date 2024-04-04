@@ -1,4 +1,4 @@
-import type { Vector3, Color, Texture, CompressedTexture } from 'three'
+import type { Vector3, Color, Texture, CompressedTexture, Euler } from 'three'
 export interface Asset {
   name: string
   type: string
@@ -33,14 +33,14 @@ export interface MaterialParams {
   envMapIntensity: number | null
   sheen: number | null
   sheenRoughness: number | null
-  sheenColor: number | null
+  sheenColor: Color | null
   specularIntensity: number | null
   specularColor: Color | null
 }
 
 export interface MeshInfo {
   position: Vector3
-  rotation: Vector3
+  rotation: Euler
   scale: Vector3
   geometryName: string
   textureInfo: TextureInfo

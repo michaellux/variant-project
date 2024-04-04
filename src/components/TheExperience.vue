@@ -3,9 +3,8 @@ import type { TresObject3D } from '@tresjs/core'
 import { TresCanvas, useTexture, useRenderLoop, useSeek } from '@tresjs/core'
 import type { ShallowRef } from 'vue'
 import { watch, reactive, shallowRef, shallowReactive, onMounted, onUnmounted } from 'vue'
-import type { Camera, Object3D, Material, WebGLRenderer, Light, DirectionalLight, AmbientLight } from 'three'
 import {
-  Mesh, CubeTextureLoader, Group, Texture,
+  Mesh, CubeTextureLoader, Group, Texture, PerspectiveCamera,
   Raycaster, Vector2, Vector3, RepeatWrapping, NearestMipmapNearestFilter, TextureLoader,
   BasicShadowMap, SRGBColorSpace, REVISION,
   NoToneMapping,
@@ -20,13 +19,14 @@ import {
   MeshStandardMaterial,
   CompressedTexture
 } from 'three'
+import type { Camera, Object3D, Material, WebGLRenderer, Light, DirectionalLight, AmbientLight, Euler } from 'three'
+
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TransformControls, Stats, vLog, useGLTF, vLightHelper } from '@tresjs/cientos'
 import type { Asset, TextureMapInfo, TextureInfo, MeshInfo, MaterialParams } from '../@types/types'
 import { truthy, falsy } from '../@types/helpers'
 import sources from '../sources'
 import { ColorGUIHelper } from '../helpers'
-import type Controller from 'lil-gui'
 import GUI from 'lil-gui'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
 import ls from 'localstorage-slim'
@@ -73,7 +73,7 @@ let gui: GUI | null = null
 let positionFolder: GUI | null = null
 let textureFolder: GUI | null = null
 let presetFolder: GUI | null = null
-let deleteMeshController: Controller | null = null
+let deleteMeshController: GUI | null = null
 let lightFolder: GUI | null = null
 let renderer: WebGLRenderer | null = null
 
@@ -96,7 +96,7 @@ const controlValues = {
 let cameraControls: OrbitControls | null = null
 let loadingStateNow = true
 
-const handleAddMesh = async (geometryName: string, textureInfo?: object, position?: Vector3, rotation?: Vector3, scale?: Vector3): Promise<void> => {
+const handleAddMesh = async (geometryName: string, textureInfo?: object, position?: Vector3, rotation?: Euler, scale?: Vector3): Promise<void> => {
   if (geometryName !== notChoosetext) {
     const modelFile = sources.find(
       (source) => source.type === 'model' && source.name === geometryName
@@ -411,7 +411,7 @@ const handleDeleteMesh = (): void => {
   saveRootGroupState()
 }
 
-const loadRootGroupState = async (): void => {
+const loadRootGroupState = async (): Promise<void> => {
   console.log('loadGroupState')
   const rootGroupState: [] | null = ls.get('rootGroupState', { decrypt: true })
   if (truthy(rootGroupState)) {
@@ -462,7 +462,9 @@ const saveRootGroupState = (): void => {
         envMapIntensity: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.envMapIntensity : null,
         sheen: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheen : null,
         sheenRoughness: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheenRoughness : null,
-        sheenColor: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheenColor : null
+        sheenColor: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheenColor : null,
+        specularIntensity: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.specularIntensity : null,
+        specularColor: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.specularColor : null
       }
       const meshInfo: MeshInfo = {
         position: rootMeshInGroup.position,
@@ -485,7 +487,7 @@ const saveCameraState = (): void => {
   localStorage.setItem('camera.rotation.x', (cameraRef.value?.rotation.x ?? '0').toString())
   localStorage.setItem('camera.rotation.y', (cameraRef.value?.rotation.y ?? '0').toString())
   localStorage.setItem('camera.rotation.z', (cameraRef.value?.rotation.z ?? '0').toString())
-  localStorage.setItem('camera.zoom', (cameraRef.value?.zoom ?? '0').toString() as string)
+  localStorage.setItem('camera.zoom', ((cameraRef.value as PerspectiveCamera)?.zoom ?? '0').toString())
 
   localStorage.setItem('controls.target.x', (cameraControls?.target.x ?? '0').toString())
   localStorage.setItem('controls.target.y', (cameraControls?.target.y ?? '0').toString())
@@ -577,7 +579,7 @@ const attachControlPanels = (): void => {
   }
 
   if (falsy(presetFolder) && truthy(gui)) {
-    const parameters = {
+    const parameters: Record<string, boolean> = {
       isLeather: false,
       isMetal: false,
       isVelours: false,
@@ -769,7 +771,7 @@ const attachControlPanels = (): void => {
   }
 }
 
-const handleMouseDown = (event): void => {
+const handleMouseDown = (event: MouseEvent): void => {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
   if (truthy(cameraRef.value)) {
@@ -847,7 +849,7 @@ watch(
   () => groupRef.value,
   (newValue) => {
     if (truthy(newValue)) {
-      loadRootGroupState()
+      void loadRootGroupState()
       loadAttachedMeshState()
     }
   },
@@ -871,7 +873,9 @@ watch(
             camera.rotation.y = parseFloat(localStorage.getItem('camera.rotation.y') ?? '0')
             camera.rotation.z = parseFloat(localStorage.getItem('camera.rotation.z') ?? '0')
 
-            camera.zoom = parseFloat(localStorage.getItem('camera.zoom') ?? '0')
+            if (camera instanceof PerspectiveCamera) {
+              camera.zoom = parseFloat(localStorage.getItem('camera.zoom') ?? '0')
+            }
           }
         }
         loadCameraState()
@@ -911,7 +915,7 @@ onUnmounted(() => {
 
 <template>
   <TresCanvas ref='canvasRef' v-bind='gl' shadows preset='realistic'>
-    <Stats style='left: 1.5rem; top: 1.5rem' />
+    <Stats class='stats' />
     <TresPerspectiveCamera
       ref='cameraRef'
     />
@@ -947,4 +951,10 @@ onUnmounted(() => {
     </TresGroup>
     </Suspense>
   </TresCanvas>
-</template>../@types/types.js
+</template>
+<style>
+  .stats {
+    left: 1.5rem;
+    top: 1.5rem;
+  }
+</style>
