@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import type { TresObject3D } from '@tresjs/core'
+import type { PBRUseTextureMap, TresObject3D } from '@tresjs/core'
 import { TresCanvas, useTexture, useRenderLoop, useSeek } from '@tresjs/core'
 import type { ShallowRef } from 'vue'
 import { watch, reactive, shallowRef, shallowReactive, onMounted, onUnmounted } from 'vue'
@@ -165,7 +165,7 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams?: o
     sheenRoughnessMap: null
   }
   if (textureSubtypeName !== notChoosetext) {
-    const applyTexture = (texture: TextureMapInfo | CompressedTexture | Texture, subtype?: string): void => {
+    const applyTexture = (texture: Partial<TextureMapInfo> | CompressedTexture | Texture, subtype?: string): void => {
       const downloadedTexture = texture
       if (falsy(downloadedTexture instanceof CompressedTexture)) {
         if ('map' in downloadedTexture && downloadedTexture.map != null) {
@@ -219,7 +219,7 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams?: o
       console.error('Texture file not found')
       return
     }
-    let downloadTexture = null
+    let downloadTexture: Texture | Partial<TextureMapInfo> | null = null
     const meshNameArr = choosenMeshRef.value?.parent?.name.split('|')
     const textureInfo: TextureInfo | null = truthy(meshNameArr) ? JSON.parse(meshNameArr[2]) : null
     let albedoTexture = null
@@ -276,7 +276,7 @@ const handleApplyTexture = async (textureSubtypeName: string, materialParams?: o
       }
     }
 
-    downloadTexture = await useTexture(downloadTextureOptions)
+    downloadTexture = await useTexture(downloadTextureOptions as PBRUseTextureMap)
     if (!Object.values(downloadTextureOptions).every(val => val === null)) {
       applyTexture(downloadTexture)
     }
