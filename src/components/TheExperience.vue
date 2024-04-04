@@ -73,8 +73,8 @@ const choosenMeshRef: ShallowRef<TresObject3D | null> = shallowRef(null)
 let gui: GUI | null = null
 let positionFolder: GUI | null = null
 let textureFolder: GUI | null = null
+let deleteFolder: GUI | null = null
 let presetFolder: GUI | null = null
-let deleteMeshController: GUI | null = null
 let lightFolder: GUI | null = null
 let renderer: WebGLRenderer | null = null
 
@@ -406,8 +406,8 @@ const handleDeleteMesh = (): void => {
 
     positionFolder?.hide()
     textureFolder?.hide()
-    deleteMeshController?.destroy()
-    deleteMeshController = null
+    deleteFolder?.destroy()
+    deleteFolder = null
   }
   saveRootGroupState()
 }
@@ -572,11 +572,12 @@ const attachControlPanels = (): void => {
       }
     })
   }
-  if (falsy(deleteMeshController) && truthy(gui)) {
+  if (falsy(deleteFolder) && truthy(gui)) {
     controlValues.removeMesh = (): void => {
       handleDeleteMesh()
     }
-    deleteMeshController = gui?.add(controlValues, 'removeMesh').name('Delete')
+    deleteFolder = gui.addFolder('')
+    deleteFolder.add(controlValues, 'removeMesh').name('Delete')
   }
 
   if (falsy(presetFolder) && truthy(gui)) {
