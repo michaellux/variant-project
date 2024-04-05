@@ -14,10 +14,7 @@ import {
   CineonToneMapping,
   ACESFilmicToneMapping,
   Color,
-  MeshBasicMaterial,
-  MeshPhongMaterial,
   MeshPhysicalMaterial,
-  MeshStandardMaterial,
   CompressedTexture
 } from 'three'
 import type { Camera, Object3D, Material, WebGLRenderer, Light, DirectionalLight, AmbientLight } from 'three'
@@ -126,11 +123,47 @@ const handleAddMesh = async (geometryName: string, textureInfo?: object, positio
   }
 }
 
-const handleApplyTexture = async (textureSubtypeName: string, materialParams?: object): Promise<void> => {
+const handleApplyTexture = async (textureSubtypeName: string, materialParams?: MaterialParams): Promise<void> => {
   const modelMaterial = choosenMeshRef.value?.material
   let newMaterial: Material | null = null
   if (truthy(modelMaterial)) {
     newMaterial = new MeshPhysicalMaterial()
+    if (truthy(materialParams) && newMaterial instanceof MeshPhysicalMaterial) {
+      newMaterial.color = new Color(materialParams.color as string)
+      if (truthy(materialParams.roughness)) {
+        newMaterial.roughness = materialParams.roughness
+      }
+      if (truthy(materialParams.metalness)) {
+        newMaterial.metalness = materialParams.metalness
+      }
+      if (truthy(materialParams.reflectivity)) {
+        newMaterial.reflectivity = materialParams.reflectivity
+      }
+      if (truthy(materialParams.ior)) {
+        newMaterial.ior = materialParams.ior
+      }
+      if (truthy(materialParams.iridescence)) {
+        newMaterial.iridescence = materialParams.iridescence
+      }
+      if (truthy(materialParams.iridescenceIOR)) {
+        newMaterial.iridescenceIOR = materialParams.iridescenceIOR
+      }
+      if (truthy(materialParams.sheen)) {
+        newMaterial.sheen = materialParams.sheen
+      }
+      if (truthy(materialParams.sheenRoughness)) {
+        newMaterial.sheenRoughness = materialParams.sheenRoughness
+      }
+      newMaterial.sheenColor = new Color(materialParams.sheenColor as string)
+      if (truthy(materialParams.specularIntensity)) {
+        newMaterial.specularIntensity = materialParams.specularIntensity
+      }
+      newMaterial.specularColor = new Color(materialParams.specularColor as string)
+      if (truthy(materialParams.envMapIntensity)) {
+        newMaterial.envMapIntensity = materialParams.envMapIntensity
+      }
+      newMaterial.needsUpdate = true
+    }
   }
   const finalTextureMapsInfo: TextureMapInfo = {
     map: null,
@@ -400,7 +433,7 @@ const loadRootGroupState = async (): Promise<void> => {
             item.position
           ).then(async () => {
             const texturePromises: Array<Promise<void>> = Object.values(item.textureInfo).map(async textureSubtypeName => {
-              await handleApplyTexture(textureSubtypeName as string, item.materialParams as object)
+              await handleApplyTexture(textureSubtypeName as string, item.materialParams)
             })
             return await Promise.all(texturePromises)
           })
@@ -490,19 +523,19 @@ const saveRootGroupState = (): void => {
       const textureInfo: TextureInfo = JSON.parse(meshNameArr[2])
       const rootMeshInGroup: TresObject3D = rootGroup.children[0] as TresObject3D
       const materialParams: MaterialParams = {
-        color: rootMeshInGroup.material instanceof MeshBasicMaterial ? rootMeshInGroup.material.color : null,
-        roughness: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.roughness : null,
-        metalness: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.metalness : null,
-        reflectivity: rootMeshInGroup.material instanceof MeshPhongMaterial ? rootMeshInGroup.material.reflectivity : null,
+        color: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? `#${rootMeshInGroup.material.color.getHexString()}` : null,
+        roughness: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.roughness : null,
+        metalness: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.metalness : null,
+        reflectivity: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.reflectivity : null,
         ior: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.ior : null,
         iridescence: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.iridescence : null,
         iridescenceIOR: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.iridescenceIOR : null,
-        envMapIntensity: rootMeshInGroup.material instanceof MeshStandardMaterial ? rootMeshInGroup.material.envMapIntensity : null,
+        envMapIntensity: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.envMapIntensity : null,
         sheen: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheen : null,
         sheenRoughness: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheenRoughness : null,
-        sheenColor: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.sheenColor : null,
+        sheenColor: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? `#${rootMeshInGroup.material.sheenColor.getHexString()}` : null,
         specularIntensity: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.specularIntensity : null,
-        specularColor: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? rootMeshInGroup.material.specularColor : null
+        specularColor: rootMeshInGroup.material instanceof MeshPhysicalMaterial ? `#${rootMeshInGroup.material.specularColor.getHexString()}` : null
       }
       const meshInfo: MeshInfo = {
         position: rootMeshInGroup.position,
@@ -761,6 +794,7 @@ const attachControlPanels = (): void => {
         default:
           break
       }
+      saveRootGroupState()
     }
   }
 

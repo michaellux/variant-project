@@ -23,7 +23,7 @@ export interface TextureInfo {
 }
 
 export interface MaterialParams {
-  color: Color | null
+  color: Color | string | null
   roughness: number | null
   metalness: number | null
   reflectivity: number | null
@@ -33,9 +33,9 @@ export interface MaterialParams {
   envMapIntensity: number | null
   sheen: number | null
   sheenRoughness: number | null
-  sheenColor: Color | null
+  sheenColor: Color | string | null
   specularIntensity: number | null
-  specularColor: Color | null
+  specularColor: Color | string | null
 }
 
 export interface MeshInfo {
