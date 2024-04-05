@@ -477,6 +477,7 @@ const setLight = (light: Light, intensity: number, color: string | Color, positi
     light.color = new Color(color)
   }
   light.position.set(position.x, position.y, position.z)
+  saveLightSettings()
 }
 
 const saveRootGroupState = (): void => {
@@ -512,7 +513,6 @@ const saveRootGroupState = (): void => {
       meshes = [...meshes, meshInfo]
     })
     localStorage.setItem('rootGroupState', JSON.stringify(meshes))
-    saveLightSettings()
   }
 }
 
@@ -772,6 +772,7 @@ const attachControlPanels = (): void => {
       lightFolder.add(directionalLightRef.value?.position, 'y').min(-10).max(10).step(0.01).listen()
       lightFolder.add(directionalLightRef.value?.position, 'z').min(-10).max(10).step(0.01).listen()
       lightFolder.addColor(new ColorGUIHelper(directionalLightRef.value, 'color'), 'value').name('color').listen()
+        .onChange(function () { saveLightSettings() })
     }
     if (truthy(directionalLightRef2.value)) {
       lightFolder.add(directionalLightRef2.value, 'intensity').min(0).max(10).step(0.001).name('intensity').listen()
@@ -779,10 +780,12 @@ const attachControlPanels = (): void => {
       lightFolder.add(directionalLightRef2.value?.position, 'y').min(-10).max(10).step(0.01).listen()
       lightFolder.add(directionalLightRef2.value?.position, 'z').min(-10).max(10).step(0.01).listen()
       lightFolder.addColor(new ColorGUIHelper(directionalLightRef2.value, 'color'), 'value').name('color').listen()
+        .onChange(function () { saveLightSettings() })
     }
     if (truthy(ambientLightRef.value)) {
       lightFolder.add(ambientLightRef.value, 'intensity').min(0).max(10).step(0.001).name('intensity').listen()
       lightFolder.addColor(new ColorGUIHelper(ambientLightRef.value, 'color'), 'value').name('color').listen()
+        .onChange(function () { saveLightSettings() })
     }
   }
 
