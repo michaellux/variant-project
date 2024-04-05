@@ -20,36 +20,16 @@ import {
   MeshStandardMaterial,
   CompressedTexture
 } from 'three'
-import type { Camera, Object3D, Material, WebGLRenderer, Light, DirectionalLight, AmbientLight, Euler } from 'three'
+import type { Camera, Object3D, Material, WebGLRenderer, Light, DirectionalLight, AmbientLight } from 'three'
 
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TransformControls, vLog, useGLTF, vLightHelper } from '@tresjs/cientos'
-import type { Asset, TextureMapInfo, TextureInfo, MeshInfo, MaterialParams } from '../@types/types'
+import type { Asset, TextureMapInfo, TextureInfo, MeshInfo, MaterialParams, LightSettings } from '../@types/types'
 import { truthy, falsy } from '../@types/helpers'
 import sources from '../sources'
 import { ColorGUIHelper } from '../helpers'
 import GUI from 'lil-gui'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
-import ls from 'localstorage-slim'
-import AES from 'crypto-js/aes'
-import encUTF8 from 'crypto-js/enc-utf8'
-
-ls.config.encrypt = true
-ls.config.secret = 'your-secret-key'
-ls.config.encrypter = (data: unknown, secret: unknown) => {
-  if (typeof data === 'string' && typeof secret === 'string') {
-    return AES.encrypt(JSON.stringify(data), secret).toString()
-  } else {
-    throw new Error('Both data and secret must be strings')
-  }
-}
-ls.config.decrypter = (data: unknown, secret: unknown) => {
-  if (typeof data === 'string' && typeof secret === 'string') {
-    return JSON.parse(AES.decrypt(data, secret).toString(encUTF8))
-  } else {
-    throw new Error('Both data and secret must be strings')
-  }
-}
 
 const gl = reactive({
   clearColor: '#b9b9b4',
@@ -97,7 +77,7 @@ const controlValues = {
 let cameraControls: OrbitControls | null = null
 let loadingStateNow = true
 
-const handleAddMesh = async (geometryName: string, textureInfo?: object, position?: Vector3, rotation?: Euler, scale?: Vector3): Promise<void> => {
+const handleAddMesh = async (geometryName: string, textureInfo?: object, position?: Vector3): Promise<void> => {
   if (geometryName !== notChoosetext) {
     const modelFile = sources.find(
       (source) => source.type === 'model' && source.name === geometryName
@@ -132,14 +112,8 @@ const handleAddMesh = async (geometryName: string, textureInfo?: object, positio
       console.log('attached in add')
       choosenMeshRef.value = addedMesh
 
-      if (position != null) {
+      if (truthy(position)) {
         addedMesh?.position.set(position.x, position.y, position.z)
-      }
-      if (rotation != null) {
-        addedMesh?.rotation.set(rotation.x, rotation.y, rotation.z)
-      }
-      if (scale != null) {
-        addedMesh?.scale.set(scale.x, scale.y, scale.z)
       }
 
       saveAttachedMeshState(addedMesh?.uuid)
@@ -414,24 +388,27 @@ const handleDeleteMesh = (): void => {
 
 const loadRootGroupState = async (): Promise<void> => {
   console.log('loadGroupState')
-  const rootGroupState: [] | null = ls.get('rootGroupState', { decrypt: true })
+  const rootGroupState = JSON.parse(localStorage.getItem('rootGroupState') ?? '{}')
   if (truthy(rootGroupState)) {
     if (truthy(groupRef.value)) {
-      await rootGroupState.reduce(async (previousPromise: Promise<void>, item: MeshInfo) => {
-        await previousPromise
-        await handleAddMesh(
-          item.geometryName,
-          item.textureInfo,
-          item.position,
-          item.rotation,
-          item.scale
-        ).then(async () => {
-          const texturePromises: Array<Promise<void>> = Object.values(item.textureInfo).map(async textureSubtypeName => {
-            await handleApplyTexture(textureSubtypeName as string, item.materialParams as object)
+      if (rootGroupState instanceof Array) {
+        await rootGroupState.reduce(async (previousPromise: Promise<void>, item: MeshInfo) => {
+          await previousPromise
+          await handleAddMesh(
+            item.geometryName,
+            item.textureInfo,
+            item.position
+          ).then(async () => {
+            const texturePromises: Array<Promise<void>> = Object.values(item.textureInfo).map(async textureSubtypeName => {
+              await handleApplyTexture(textureSubtypeName as string, item.materialParams as object)
+            })
+            return await Promise.all(texturePromises)
           })
-          return await Promise.all(texturePromises)
-        })
-      }, Promise.resolve())
+        }, Promise.resolve())
+      } else {
+        console.log('нет данных для загрузки')
+      }
+      loadLightSettings()
       loadingStateNow = false
       console.log('можно сохранять')
     } else {
@@ -441,6 +418,65 @@ const loadRootGroupState = async (): Promise<void> => {
     loadingStateNow = false
     console.log('можно сохранять')
   }
+}
+
+const saveLightSettings = (): void => {
+  let directionalLight = null
+  if (truthy(directionalLightRef.value)) {
+    directionalLight = {
+      color: directionalLightRef.value.color,
+      intensity: directionalLightRef.value.intensity,
+      position: directionalLightRef.value.position
+    }
+  }
+  let directionalLight2 = null
+  if (truthy(directionalLightRef2.value)) {
+    directionalLight2 = {
+      color: directionalLightRef2.value.color,
+      intensity: directionalLightRef2.value.intensity,
+      position: directionalLightRef2.value.position
+    }
+  }
+  let ambientLight = null
+  if (truthy(ambientLightRef.value)) {
+    ambientLight = {
+      color: ambientLightRef.value.color,
+      intensity: ambientLightRef.value.intensity,
+      position: ambientLightRef.value.position
+    }
+  }
+  const lightSettings: LightSettings = {
+    directionalLight,
+    directionalLight2,
+    ambientLight
+  }
+  localStorage.setItem('lightSettings', JSON.stringify(lightSettings))
+}
+
+const loadLightSettings = (): void => {
+  const lightSettings: LightSettings = JSON.parse(localStorage.getItem('lightSettings') ?? '{}')
+  const directionalLightSettings = lightSettings.directionalLight
+  if (truthy(directionalLightRef.value) && truthy(directionalLightSettings)) {
+    setLight(directionalLightRef.value, directionalLightSettings.intensity, directionalLightSettings.color, directionalLightSettings.position)
+  }
+  const directionalLight2Settings = lightSettings.directionalLight2
+  if (truthy(directionalLightRef2.value) && truthy(directionalLight2Settings)) {
+    setLight(directionalLightRef2.value, directionalLight2Settings.intensity, directionalLight2Settings.color, directionalLight2Settings.position)
+  }
+  const ambientLightSettings = lightSettings.ambientLight
+  if (truthy(ambientLightRef.value) && truthy(ambientLightSettings)) {
+    setLight(ambientLightRef.value, ambientLightSettings.intensity, ambientLightSettings.color, ambientLightSettings.position)
+  }
+}
+
+const setLight = (light: Light, intensity: number, color: string | Color, position: Vector3): void => {
+  light.intensity = intensity
+  if (color instanceof Color) {
+    light.color = color
+  } else {
+    light.color = new Color(color)
+  }
+  light.position.set(position.x, position.y, position.z)
 }
 
 const saveRootGroupState = (): void => {
@@ -469,15 +505,14 @@ const saveRootGroupState = (): void => {
       }
       const meshInfo: MeshInfo = {
         position: rootMeshInGroup.position,
-        rotation: rootMeshInGroup.rotation,
-        scale: rootMeshInGroup.scale,
         geometryName,
         textureInfo,
         materialParams
       }
       meshes = [...meshes, meshInfo]
     })
-    ls.set('rootGroupState', meshes, { encrypt: true })
+    localStorage.setItem('rootGroupState', JSON.stringify(meshes))
+    saveLightSettings()
   }
 }
 
@@ -592,12 +627,6 @@ const attachControlPanels = (): void => {
     presetFolder.add(parameters, 'isMetal').name('Metal').listen().onChange(function () { setChecked('isMetal') })
     presetFolder.add(parameters, 'isVelours').name('Velours').listen().onChange(function () { setChecked('isVelours') })
     presetFolder.add(parameters, 'isWood').name('Wood').listen().onChange(function () { setChecked('isWood') })
-
-    const setLight = (light: Light, intensity: number, color: string, position: Vector3): void => {
-      light.intensity = intensity
-      light.color = new Color(color)
-      light.position.set(position.x, position.y, position.z)
-    }
 
     const setChecked = (prop: string): void => {
       for (const param in parameters) {
@@ -836,7 +865,6 @@ onMounted(() => {
     gui.add(renderer, 'toneMappingExposure').min(0).max(10).step(0.001).listen().name('Exposure')
   }
   document.addEventListener('mousedown', handleMouseDown, false)
-  document.addEventListener('mouseup', saveRootGroupState, false)
 })
 
 const { onLoop } = useRenderLoop()
@@ -910,7 +938,6 @@ watch(
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', handleMouseDown, false)
-  document.removeEventListener('mouseup', saveRootGroupState, false)
 })
 
 </script>
